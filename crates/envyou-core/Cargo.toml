@@ -1,0 +1,25 @@
+[package]
+name = "envyou-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Pure-Rust core for envyou: encrypted local storage, MCP server, license & Claude Desktop config utilities. GUI-free and fully unit-testable."
+
+[lib]
+name = "envyou_core"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+directories = "5"
+
+[dev-dependencies]
+tempfile = "3"

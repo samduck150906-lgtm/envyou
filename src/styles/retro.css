@@ -1,0 +1,427 @@
+/* ============================================================
+   envyou — 80s retro (Windows 1.0–3.1) UI (spec §3)
+   No blur. Hard pixel bevels only. Solid classic gray.
+   ============================================================ */
+
+:root {
+  --gray: #c0c0c0;
+  --gray-alt: #d4d0c8;
+  --black: #000000;
+  --navy: #000080;
+  --dark-gray: #808080;
+  --white: #ffffff;
+  --teal: #008080;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--teal); /* classic desktop backdrop when not maximized */
+  color: var(--black);
+  font-family: "Galmuri9", "NeoDunggeunmo", "Courier New", monospace;
+  font-size: 13px;
+  -webkit-font-smoothing: none;
+  image-rendering: pixelated;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* ---- Bevel mixin via utility classes ---- */
+.bevel-out {
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dark-gray);
+  border-bottom: 2px solid var(--dark-gray);
+  background-color: var(--gray);
+}
+.bevel-in {
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+  background-color: var(--white);
+}
+
+/* ---- Window ---- */
+.win {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dark-gray);
+  border-bottom: 2px solid var(--dark-gray);
+  background-color: var(--gray);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--navy);
+  color: var(--white);
+  padding: 2px 3px;
+  font-weight: bold;
+  cursor: move;
+}
+.titlebar .title {
+  padding-left: 3px;
+  letter-spacing: 1px;
+}
+.title-buttons {
+  display: flex;
+  gap: 2px;
+}
+.title-btn {
+  width: 20px;
+  height: 18px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dark-gray);
+  border-bottom: 2px solid var(--dark-gray);
+  background-color: var(--gray);
+  color: var(--black);
+}
+.title-btn:active {
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+}
+.title-btn.active {
+  background-color: var(--teal);
+}
+
+/* ---- Tier bar ---- */
+.tier-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  background: var(--gray-alt);
+  border-bottom: 1px solid var(--dark-gray);
+  font-size: 11px;
+}
+#tier-label {
+  font-weight: bold;
+}
+#tier-label.pro {
+  color: var(--navy);
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--navy);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+/* ---- Body layout ---- */
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 4px;
+  gap: 4px;
+}
+.sidebar {
+  width: 38%;
+  min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+  background: var(--white);
+}
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+  background: var(--white);
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--gray);
+  border-bottom: 2px solid var(--dark-gray);
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.mini-btn {
+  width: 18px;
+  height: 16px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 2px;
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dark-gray);
+  border-bottom: 2px solid var(--dark-gray);
+  background-color: var(--gray);
+}
+.mini-btn:active {
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+}
+
+/* ---- Project list ---- */
+.project-list {
+  list-style: none;
+  flex: 1;
+  overflow-y: auto;
+}
+.project-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--dark-gray);
+  border-left: 4px solid transparent;
+}
+.project-list li.active {
+  background: var(--navy);
+  color: var(--white);
+}
+.project-list li .swatch {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border: 1px solid var(--black);
+}
+.project-list li .pname {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-list li .count {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ---- Variables ---- */
+.vars-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 3px;
+}
+.empty-hint {
+  padding: 12px;
+  color: var(--dark-gray);
+  text-align: center;
+  font-size: 11px;
+}
+.var-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 2px;
+  border-bottom: 1px dotted var(--dark-gray);
+}
+.var-key {
+  font-weight: bold;
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.var-val {
+  flex: 1;
+  font-family: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #003000;
+  cursor: pointer;
+  user-select: text;
+}
+.var-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ---- Inputs / buttons ---- */
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+  background: var(--white);
+  color: var(--black);
+  width: 100%;
+}
+input:focus,
+textarea:focus {
+  outline: 1px dotted var(--black);
+}
+button.btn {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 12px;
+  cursor: pointer;
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dark-gray);
+  border-bottom: 2px solid var(--dark-gray);
+  background-color: var(--gray);
+  color: var(--black);
+}
+button.btn:active {
+  border-top: 2px solid var(--dark-gray);
+  border-left: 2px solid var(--dark-gray);
+  border-right: 2px solid var(--white);
+  border-bottom: 2px solid var(--white);
+}
+button.btn.primary {
+  font-weight: bold;
+}
+button.btn:disabled {
+  color: var(--dark-gray);
+  cursor: not-allowed;
+}
+
+/* ---- Status bar ---- */
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  font-size: 11px;
+  border-top: 2px solid var(--white);
+  background: var(--gray);
+}
+.statusbar .grip {
+  color: var(--dark-gray);
+  cursor: nwse-resize;
+}
+
+/* ---- Modal ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-overlay.hidden {
+  display: none;
+}
+.modal {
+  width: 300px;
+  max-width: 92vw;
+  height: auto;
+}
+.modal .titlebar {
+  cursor: default;
+}
+.modal-content {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-content label {
+  font-size: 11px;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 2px;
+}
+.field {
+  margin-bottom: 4px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.checkbox-row input {
+  width: auto;
+}
+.color-swatches {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.color-swatches .swatch-pick {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  border: 2px solid var(--gray);
+}
+.color-swatches .swatch-pick.sel {
+  border: 2px solid var(--black);
+}
+.error-text {
+  color: #a00000;
+  font-size: 11px;
+}
+.hint {
+  font-size: 10px;
+  color: var(--dark-gray);
+}
+
+/* Retro scrollbars (WebKit) */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+::-webkit-scrollbar-track {
+  background: var(--gray-alt);
+}
+::-webkit-scrollbar-thumb {
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dark-gray);
+  border-bottom: 2px solid var(--dark-gray);
+  background-color: var(--gray);
+}

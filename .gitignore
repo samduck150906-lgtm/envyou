@@ -1,0 +1,23 @@
+# Rust
+/target
+**/target
+Cargo.lock.bak
+
+# Tauri generated
+/src-tauri/gen
+/src-tauri/target
+
+# Node (frontend tooling, if ever added)
+node_modules
+dist
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# envyou local state (never commit secrets)
+enc_state.json
+*.tmp

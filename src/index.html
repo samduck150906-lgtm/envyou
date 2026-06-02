@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>envyou</title>
+    <link rel="stylesheet" href="styles/retro.css" />
+  </head>
+  <body>
+    <!-- 80s window chrome -->
+    <div id="window" class="win">
+      <!-- Title bar (draggable) -->
+      <div class="titlebar" data-tauri-drag-region>
+        <span class="title" data-tauri-drag-region>■ envyou</span>
+        <div class="title-buttons">
+          <button id="pin-btn" class="title-btn" title="Always on top">📌</button>
+          <button id="settings-btn" class="title-btn" title="Settings">≡</button>
+          <button id="min-btn" class="title-btn" title="Minimize to tray">_</button>
+        </div>
+      </div>
+
+      <!-- License banner -->
+      <div id="tier-bar" class="tier-bar">
+        <span id="tier-label">FREE</span>
+        <button id="upgrade-btn" class="link-btn">Upgrade to Pro »</button>
+      </div>
+
+      <div class="body">
+        <!-- Sidebar: projects -->
+        <aside class="sidebar">
+          <div class="panel-head">
+            <span>PROJECTS</span>
+            <button id="add-project-btn" class="mini-btn" title="New project">+</button>
+          </div>
+          <ul id="project-list" class="project-list"></ul>
+        </aside>
+
+        <!-- Main: variables -->
+        <main class="main">
+          <div class="panel-head">
+            <span id="vars-title">VARIABLES</span>
+            <div>
+              <button id="mask-toggle-btn" class="mini-btn" title="Toggle masking">👁</button>
+              <button id="add-var-btn" class="mini-btn" title="New variable">+</button>
+            </div>
+          </div>
+          <div id="vars-container" class="vars-container">
+            <p class="empty-hint">Select or create a project.</p>
+          </div>
+        </main>
+      </div>
+
+      <!-- Status bar -->
+      <div class="statusbar">
+        <span id="status-text">Ready</span>
+        <span class="grip" title="Resize">◢</span>
+      </div>
+    </div>
+
+    <!-- Modal host -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div id="modal" class="win modal"></div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
