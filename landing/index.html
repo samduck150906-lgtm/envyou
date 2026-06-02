@@ -1,220 +1,603 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>envyou — 초경량 레트로 환경변수 관리 데스크톱 앱</title>
-    <meta
-      name="description"
-      content="envyou는 .env 파일을 안전하게 로컬에 보관하고 직관적으로 관리하는 초경량 레트로 데스크톱 앱입니다. Zero Cloud, MCP Native, Always on Top."
-    />
-    <meta property="og:title" content="envyou — 초경량 레트로 환경변수 관리 앱" />
-    <meta
-      property="og:description"
-      content="Zero Cloud · MCP Native · 80s Retro UI. 개발자를 위한 로컬 전용 .env 관리 데스크톱 앱."
-    />
-    <meta property="og:type" content="website" />
-    <link rel="icon" type="image/png" href="assets/favicon.png" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <!-- ===== Title bar (fake OS window chrome) ===== -->
-    <div class="desktop">
-      <div class="win">
-        <header class="titlebar">
-          <span class="title">■ envyou.exe</span>
-          <div class="title-buttons">
-            <span class="title-btn">_</span>
-            <span class="title-btn">□</span>
-            <span class="title-btn">✕</span>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>envyou — Local-First Env Manager for Developers</title>
+<meta name="description" content="envyou는 Tauri 기반 초경량 로컬 환경변수 관리 데스크톱 앱입니다. 컨텍스트 스위칭을 멈추고, 클라우드 없이 로컬에만 암호화 저장하고, Claude Desktop과 MCP로 연동하세요." />
+<meta property="og:title" content="envyou — Stop Context Switching" />
+<meta property="og:description" content="Local-First, AES-256 encrypted, Claude-MCP native env manager. One-time $9.99. No subscription." />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#000080" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='%23000080'/%3E%3Crect x='2' y='2' width='12' height='2' fill='%23ffffff'/%3E%3Crect x='2' y='2' width='2' height='12' fill='%23ffffff'/%3E%3Ctext x='4' y='13' font-family='monospace' font-size='11' fill='%23ffffff'%3Ee%3C/text%3E%3C/svg%3E" />
+
+<!-- Pixel fonts: Galmuri (KR+EN bitmap) + Google fallback -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" />
+
+<style>
+/* ===================================================================
+   envyou.dev — 80s Windows (1.0–3.1) Brutalism
+   Single-file landing page. No build step. No external JS.
+   =================================================================== */
+
+:root{
+  --gray:#c0c0c0;
+  --gray-2:#d4d0c8;
+  --black:#000000;
+  --navy:#000080;
+  --navy-2:#1084d0;
+  --white:#ffffff;
+  --shadow:#808080;
+  --teal:#008080;
+  --green:#007000;
+  --red:#aa0000;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:var(--teal);
+  /* subtle 80s dither on the "desktop" */
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px);
+  color:var(--black);
+  font-family:"Galmuri9","DotGothic16","Courier New",monospace;
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:none;
+  -moz-osx-font-smoothing:unset;
+  text-rendering:optimizeSpeed;
+  image-rendering:pixelated;
+  padding:18px 12px 60px;
+  min-height:100vh;
+}
+
+img{image-rendering:pixelated}
+
+/* ---- Bevel utilities (the core of the look) ---- */
+.raised{
+  border-top:2px solid var(--white);
+  border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);
+  border-bottom:2px solid var(--shadow);
+  background:var(--gray);
+}
+.sunken{
+  border-top:2px solid var(--shadow);
+  border-left:2px solid var(--shadow);
+  border-right:2px solid var(--white);
+  border-bottom:2px solid var(--white);
+  background:var(--white);
+}
+
+a{color:var(--navy)}
+
+/* ===== Outer window ===== */
+.window{
+  max-width:1100px;
+  margin:0 auto;
+  border-top:2px solid var(--white);
+  border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);
+  border-bottom:2px solid var(--shadow);
+  background:var(--gray);
+  display:flex;
+  flex-direction:column;
+}
+
+.titlebar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--navy);color:var(--white);
+  padding:3px 4px;font-weight:bold;letter-spacing:1px;user-select:none;
+}
+.titlebar .t-left{display:flex;align-items:center;gap:6px;padding-left:2px}
+.titlebar .dot{width:14px;height:14px;display:inline-block;background:var(--gray);
+  border-top:1px solid var(--white);border-left:1px solid var(--white);
+  border-right:1px solid var(--black);border-bottom:1px solid var(--black)}
+.t-btns{display:flex;gap:3px}
+.t-btn{
+  width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--black);font-weight:bold;cursor:default;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);
+  background:var(--gray);
+}
+
+/* ===== GNB / menu bar ===== */
+.gnb{
+  display:flex;align-items:center;gap:4px;
+  background:var(--gray);padding:5px 8px;
+  border-bottom:2px solid var(--shadow);
+}
+.logo{
+  display:flex;align-items:center;gap:8px;font-weight:bold;font-size:18px;
+  padding:2px 8px;letter-spacing:1px;
+}
+.logo .mark{
+  width:22px;height:22px;background:var(--navy);color:var(--white);
+  display:inline-flex;align-items:center;justify-content:center;font-size:13px;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--black);border-bottom:2px solid var(--black);
+}
+.gnb nav{display:flex;gap:2px;margin-left:8px}
+.gnb nav a{
+  text-decoration:none;color:var(--black);padding:4px 12px;font-size:14px;
+}
+.gnb nav a:hover{background:var(--navy);color:var(--white)}
+.gnb .spacer{flex:1}
+
+/* ===== Buttons ===== */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:inherit;font-size:15px;cursor:pointer;text-decoration:none;
+  color:var(--black);padding:8px 18px;white-space:nowrap;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);
+  background:var(--gray);
+}
+.btn:active,.btn.is-active{
+  border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+  border-right:2px solid var(--white);border-bottom:2px solid var(--white);
+  padding:9px 17px 7px 19px;
+}
+.btn.primary{font-weight:bold}
+.btn.big{font-size:17px;padding:13px 26px}
+.btn.big:active{padding:14px 25px 12px 27px}
+.btn.cta{background:var(--gray-2)}
+.btn .ic{font-size:16px;line-height:1}
+
+/* ===== Body wrapper ===== */
+.content{background:var(--gray);padding:0}
+
+/* ===== Hero ===== */
+.hero{
+  display:grid;grid-template-columns:1.05fr .95fr;gap:30px;align-items:center;
+  padding:46px 30px;background:var(--gray);
+}
+.eyebrow{
+  display:inline-block;background:var(--black);color:var(--white);
+  font-size:12px;padding:3px 10px;margin-bottom:14px;letter-spacing:1px;
+}
+.hero h1{
+  font-size:46px;line-height:1.15;letter-spacing:1px;margin-bottom:14px;
+}
+.hero h1 .hl{background:var(--navy);color:var(--white);padding:0 6px;}
+.hero .lead{font-size:17px;max-width:48ch;margin-bottom:10px}
+.hero .desc{font-size:14px;max-width:50ch;margin-bottom:22px;color:#202020}
+.hero code{background:var(--white);border:1px solid var(--shadow);padding:0 5px}
+.cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.trust{display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-size:12px;padding:3px 9px;background:var(--navy);color:var(--white)}
+.tag.ghost{background:transparent;color:var(--black);border:1px solid var(--black)}
+
+/* ===== App mockup (pure CSS) ===== */
+.mock{
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);
+  background:var(--gray);font-size:12px;user-select:none;
+  box-shadow:8px 8px 0 rgba(0,0,0,.25); /* hard offset, no blur = brutalist */
+}
+.mock .m-title{display:flex;justify-content:space-between;align-items:center;
+  background:var(--navy);color:var(--white);padding:3px 5px;font-weight:bold}
+.mock .m-title .pins{display:flex;gap:4px}
+.mock .m-pin{width:18px;height:16px;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--gray);color:#000;font-size:11px;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow)}
+.mock .m-tier{display:flex;justify-content:space-between;padding:3px 8px;
+  background:var(--gray-2);border-bottom:1px solid var(--shadow);font-size:11px}
+.mock .m-tier b{color:#000}
+.mock .m-tier u{color:var(--navy)}
+.mock .m-body{display:flex;gap:5px;padding:6px}
+.m-side{width:44%;background:var(--white);
+  border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+  border-right:2px solid var(--white);border-bottom:2px solid var(--white)}
+.m-main{flex:1;background:var(--white);
+  border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+  border-right:2px solid var(--white);border-bottom:2px solid var(--white);min-width:0}
+.m-head{background:var(--gray);border-bottom:2px solid var(--shadow);
+  padding:3px 6px;font-weight:bold;display:flex;justify-content:space-between}
+.m-side ul{list-style:none}
+.m-side li{display:flex;align-items:center;gap:5px;padding:3px 6px;
+  border-bottom:1px dotted var(--shadow)}
+.m-side li.sel{background:var(--navy);color:var(--white)}
+.m-side li i{width:9px;height:9px;border:1px solid #000;flex:none}
+.m-side li b{margin-left:auto;opacity:.65}
+.m-var{display:flex;justify-content:space-between;gap:6px;padding:3px 6px;
+  border-bottom:1px dotted var(--shadow)}
+.m-var b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m-var span{color:var(--green);flex:none}
+.m-var .mask{color:#444;letter-spacing:1px}
+.mock .m-status{display:flex;justify-content:space-between;padding:3px 7px;
+  border-top:2px solid var(--white);background:var(--gray);font-size:10px}
+
+/* ===== Section frame ===== */
+section.panel{padding:40px 30px;border-top:2px solid var(--white);background:var(--gray)}
+section.panel.alt{background:var(--gray-2)}
+.sec-title{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.sec-title h2{font-size:26px;letter-spacing:1px}
+.sec-title .chip{background:var(--navy);color:#fff;font-size:11px;padding:3px 8px}
+.sec-sub{margin-bottom:26px;max-width:62ch;color:#202020;font-size:14px}
+
+/* ===== Features ===== */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.feat{padding:20px}
+.feat .icon{
+  width:48px;height:48px;display:flex;align-items:center;justify-content:center;
+  font-size:24px;margin-bottom:14px;background:var(--gray-2);
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);
+}
+.feat h3{font-size:17px;margin-bottom:8px}
+.feat p{font-size:13.5px;color:#202020}
+.feat .kbd{display:inline-block;margin-top:10px;font-size:11px;background:var(--white);
+  border:1px solid var(--shadow);padding:1px 6px}
+
+/* ===== Pricing ===== */
+.pricing{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px}
+.plan{padding:0;display:flex;flex-direction:column}
+.plan .p-title{background:var(--navy);color:#fff;display:flex;justify-content:space-between;
+  align-items:center;padding:4px 8px;font-weight:bold}
+.plan .p-title .p-close{width:18px;height:16px;display:inline-flex;align-items:center;
+  justify-content:center;background:var(--gray);color:#000;font-size:11px;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow)}
+.plan .p-body{padding:22px 20px;flex:1;display:flex;flex-direction:column}
+.plan h3{font-size:20px;margin-bottom:4px}
+.plan .price{font-size:34px;font-weight:bold;margin:6px 0 4px}
+.plan .price small{font-size:13px;font-weight:normal;color:#333}
+.plan .note{font-size:12px;color:#333;margin-bottom:16px;min-height:18px}
+.plan ul{list-style:none;margin-bottom:20px;flex:1}
+.plan li{padding:4px 0;font-size:14px;display:flex;gap:8px;align-items:flex-start}
+.plan li .yes{color:var(--green);font-weight:bold}
+.plan li .no{color:var(--red);font-weight:bold}
+.plan.pro{position:relative}
+.plan.pro .p-title{background:var(--green)}
+.ribbon{position:absolute;top:30px;right:-2px;background:var(--red);color:#fff;
+  font-size:11px;padding:3px 12px;font-weight:bold;z-index:2}
+
+/* ===== Footer ===== */
+footer.foot{
+  background:var(--gray);border-top:2px solid var(--white);
+  padding:22px 30px;font-size:13px;
+}
+.foot-grid{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.foot .brand{font-weight:bold;font-size:16px;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.foot .links a{display:inline-block;margin-right:14px}
+.biz{font-size:12px;color:#303030;line-height:1.8}
+.biz b{color:#000}
+.copyright{margin-top:18px;padding-top:12px;border-top:1px dotted var(--shadow);
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:#303030}
+
+/* ===== Status bar (window bottom) ===== */
+.statusbar{display:flex;justify-content:space-between;align-items:center;
+  padding:3px 8px;background:var(--gray);border-top:2px solid var(--white);font-size:12px}
+.statusbar .grip{color:var(--shadow)}
+
+/* ===== Retro modal dialog ===== */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);display:none;
+  align-items:center;justify-content:center;z-index:50;padding:16px}
+.overlay.show{display:flex}
+.dialog{width:380px;max-width:100%;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);
+  background:var(--gray)}
+.dialog .d-title{background:var(--navy);color:#fff;font-weight:bold;padding:4px 6px;
+  display:flex;justify-content:space-between;align-items:center}
+.dialog .d-title .x{width:18px;height:16px;display:inline-flex;align-items:center;
+  justify-content:center;background:var(--gray);color:#000;cursor:pointer;font-size:11px;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow)}
+.dialog .d-body{padding:20px 18px;display:flex;gap:14px;align-items:flex-start}
+.dialog .d-ico{font-size:32px;flex:none}
+.dialog .d-actions{display:flex;justify-content:center;gap:10px;padding:0 18px 18px}
+
+/* ===== Responsive ===== */
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;padding:34px 20px}
+  .hero h1{font-size:38px}
+  .features{grid-template-columns:1fr}
+  .pricing{grid-template-columns:1fr}
+  .gnb nav{display:none}
+  .gnb nav.open{display:flex;position:absolute;flex-direction:column;left:8px;right:8px;top:64px;
+    background:var(--gray);z-index:20;padding:6px;
+    border-top:2px solid var(--white);border-left:2px solid var(--white);
+    border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow)}
+  .menu-toggle{display:inline-flex!important}
+}
+.menu-toggle{display:none}
+@media (max-width:560px){
+  body{font-size:14px;padding:8px 6px 50px}
+  .hero h1{font-size:30px}
+  .sec-title h2{font-size:21px}
+  .gnb .gnb-dl{display:none}
+  section.panel{padding:28px 18px}
+  footer.foot{padding:18px}
+}
+</style>
+</head>
+<body>
+<div class="window" id="top">
+
+  <!-- ===== Title bar ===== -->
+  <div class="titlebar">
+    <span class="t-left"><span class="dot"></span> envyou.dev — [Local-First Env Manager]</span>
+    <span class="t-btns">
+      <span class="t-btn">_</span>
+      <span class="t-btn">□</span>
+      <span class="t-btn">✕</span>
+    </span>
+  </div>
+
+  <!-- ===== GNB ===== -->
+  <header class="gnb">
+    <div class="logo"><span class="mark">e</span> envyou</div>
+    <button class="btn menu-toggle" id="menuToggle" aria-label="Menu" style="padding:6px 12px">≡</button>
+    <nav id="nav">
+      <a href="#features"><u>F</u>eatures</a>
+      <a href="#pricing"><u>P</u>ricing</a>
+      <a href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <span class="spacer"></span>
+    <a href="#download" class="btn primary gnb-dl" id="gnbDownload">⬇ Download for <span id="gnbOS">Windows</span></a>
+  </header>
+
+  <!-- ===== Content ===== -->
+  <main class="content">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-text">
+        <span class="eyebrow">▶ TAURI · RUST · LOCAL-ONLY</span>
+        <h1>Stop Context<br>Switching.<br><span class="hl">Local-First</span> Env Manager.</h1>
+        <p class="lead">에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.</p>
+        <p class="desc">무거운 클라우드 설정 도구는 그만. envyou는 수 MB짜리 초경량 데스크톱 앱으로, 모든 키를 <b>로컬에만 AES-256으로 암호화 저장</b>합니다. 그리고 Claude Desktop과 MCP로 연동돼 AI가 직접 환경변수를 읽고 쓸 수 있죠.</p>
+        <div class="cta-row">
+          <a href="#download" class="btn primary big">⬇ Download Free</a>
+          <a href="#pricing" class="btn big cta">Pro 보기 — $9.99</a>
+        </div>
+        <div class="trust">
+          <span class="tag">Zero Cloud</span>
+          <span class="tag">AES-256-GCM</span>
+          <span class="tag">Claude MCP Native</span>
+          <span class="tag ghost">No Subscription</span>
+        </div>
+      </div>
+
+      <!-- CSS app mockup -->
+      <div class="mock" aria-hidden="true">
+        <div class="m-title">
+          <span>■ envyou</span>
+          <span class="pins"><span class="m-pin">📌</span><span class="m-pin">≡</span><span class="m-pin">_</span></span>
+        </div>
+        <div class="m-tier"><b>FREE</b><u>Upgrade to Pro »</u></div>
+        <div class="m-body">
+          <div class="m-side">
+            <div class="m-head"><span>PROJECTS</span><span>+</span></div>
+            <ul>
+              <li class="sel"><i style="background:#000080"></i> api-server <b>4</b></li>
+              <li><i style="background:#007000"></i> web-app <b>7</b></li>
+              <li><i style="background:#aa0000"></i> staging <b>2</b></li>
+            </ul>
           </div>
-        </header>
+          <div class="m-main">
+            <div class="m-head"><span>VARS — api-server</span><span>👁 +</span></div>
+            <div class="m-var"><b>DATABASE_URL</b><span class="mask">••••••••</span></div>
+            <div class="m-var"><b>AWS_SECRET_KEY</b><span class="mask">••••••••</span></div>
+            <div class="m-var"><b>PORT</b><span>8080</span></div>
+            <div class="m-var"><b>NODE_ENV</b><span>production</span></div>
+          </div>
+        </div>
+        <div class="m-status"><span>Always on Top ✔</span><span>◢</span></div>
+      </div>
+    </section>
 
-        <!-- ===== Menu bar ===== -->
-        <nav class="menubar">
-          <a href="#features"><u>F</u>eatures</a>
-          <a href="#mcp"><u>M</u>CP</a>
-          <a href="#pricing"><u>P</u>ricing</a>
-          <a href="#download"><u>D</u>ownload</a>
-          <a class="menu-right" href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub ↗</a>
-        </nav>
+    <!-- Features -->
+    <section class="panel alt" id="features">
+      <div class="sec-title"><span class="chip">01</span><h2>왜 envyou 인가</h2></div>
+      <p class="sec-sub">무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.</p>
+      <div class="features">
+        <div class="feat raised">
+          <div class="icon">🪶</div>
+          <h3>극한의 가벼움</h3>
+          <p>Electron이 아닌 Tauri(Rust) 기반. 수 MB 메모리만 쓰는 플로팅 데스크톱 앱이 전역 단축키로 즉시 떠오릅니다.</p>
+          <span class="kbd">⌨ Ctrl + Shift + E</span>
+        </div>
+        <div class="feat raised">
+          <div class="icon">🔒</div>
+          <h3>완벽한 프라이버시</h3>
+          <p>API 키·DB 패스워드는 어떤 서버로도 전송되지 않습니다. 단일 파일에 AES-256-GCM으로 암호화되어 오직 로컬에만 저장됩니다.</p>
+          <span class="kbd">🚫 No Cloud Sync</span>
+        </div>
+        <div class="feat raised">
+          <div class="icon">🤖</div>
+          <h3>Claude MCP 연동</h3>
+          <p>Model Context Protocol로 Claude Desktop과 연결. AI가 환경변수를 직접 읽고 쓰되, 매 호출마다 사용자 물리 승인 팝업이 뜹니다.</p>
+          <span class="kbd">$ envyou --mcp</span>
+        </div>
+      </div>
+    </section>
 
-        <main class="content">
-          <!-- ===== Hero ===== -->
-          <section class="hero">
-            <div class="hero-text">
-              <img class="hero-logo" src="assets/logo.png" alt="envyou logo" width="72" height="72" />
-              <h1>envyou</h1>
-              <p class="tagline">개발자를 위한 초경량 <b>레트로 환경변수 관리</b> 데스크톱 앱</p>
-              <p class="sub">
-                복잡한 클라우드 설정 도구는 그만. <code>.env</code> 를 프로젝트별로
-                <b>로컬에 암호화 저장</b>하고, 항상 화면 위에 띄워두고, AI와 바로 연동하세요.
-              </p>
-              <div class="cta-row">
-                <a class="btn primary" href="#download">⬇ 다운로드</a>
-                <a class="btn" href="#features">기능 보기</a>
-              </div>
-              <p class="badges">
-                <span class="badge">Zero Cloud</span>
-                <span class="badge">AES-256-GCM</span>
-                <span class="badge">MCP Native</span>
-                <span class="badge">~수 MB</span>
-              </p>
-            </div>
+    <!-- Pricing -->
+    <section class="panel" id="pricing">
+      <div class="sec-title"><span class="chip">02</span><h2>가격 — 구독은 없습니다</h2></div>
+      <p class="sec-sub">한 번 사면 평생 내 것. Paddle을 통한 단 1회성 결제로 모든 Pro 기능을 영구히 잠금 해제하세요.</p>
+      <div class="pricing">
 
-            <!-- App mockup -->
-            <div class="hero-mock" aria-hidden="true">
-              <div class="mini-win">
-                <div class="mini-title">
-                  <span>■ envyou</span><span class="mini-btns">📌 ≡ _</span>
-                </div>
-                <div class="mini-tier"><b>FREE</b><span>Upgrade to Pro »</span></div>
-                <div class="mini-body">
-                  <div class="mini-side">
-                    <div class="mini-head">PROJECTS +</div>
-                    <ul>
-                      <li class="sel"><i style="background:#000080"></i> api-server <b>4</b></li>
-                      <li><i style="background:#008000"></i> web-app <b>7</b></li>
-                      <li><i style="background:#ff0000"></i> staging <b>2</b></li>
-                    </ul>
-                  </div>
-                  <div class="mini-main">
-                    <div class="mini-head">VARIABLES — api-server 👁 +</div>
-                    <div class="mini-var"><b>DATABASE_URL</b><span>••••••••</span></div>
-                    <div class="mini-var"><b>AWS_SECRET_KEY</b><span>••••••••</span></div>
-                    <div class="mini-var"><b>PORT</b><span>8080</span></div>
-                    <div class="mini-var"><b>NODE_ENV</b><span>production</span></div>
-                  </div>
-                </div>
-                <div class="mini-status"><span>Ready</span><span>◢</span></div>
-              </div>
-            </div>
-          </section>
+        <!-- Free -->
+        <div class="plan raised">
+          <div class="p-title"><span>■ Free.exe</span><span class="p-close">✕</span></div>
+          <div class="p-body">
+            <h3>Free</h3>
+            <p class="price">₩0</p>
+            <p class="note">시작하기에 충분합니다.</p>
+            <ul>
+              <li><span class="yes">✔</span> 프로젝트 최대 <b>3개</b></li>
+              <li><span class="yes">✔</span> 프로젝트당 변수 10개</li>
+              <li><span class="yes">✔</span> 전역 단축키 · Always on Top</li>
+              <li><span class="yes">✔</span> 로컬 AES-256 암호화</li>
+              <li><span class="no">✕</span> <span style="color:#555">커스텀 테마</span></li>
+              <li><span class="no">✕</span> <span style="color:#555">Claude MCP 연동</span></li>
+            </ul>
+            <a href="#download" class="btn">⬇ 무료 다운로드</a>
+          </div>
+        </div>
 
-          <!-- ===== Features ===== -->
-          <section id="features" class="panel">
-            <h2>▍왜 envyou 인가</h2>
-            <div class="grid">
-              <div class="card">
-                <div class="ico">🔒</div>
-                <h3>Zero Cloud, Total Privacy</h3>
-                <p>API 키·DB 패스워드는 외부 서버로 절대 전송되지 않습니다. AES-256-GCM으로 로컬에만 암호화 저장.</p>
-              </div>
-              <div class="card">
-                <div class="ico">📌</div>
-                <h3>Zero Context Switching</h3>
-                <p>전역 단축키로 즉시 토글, 항상 위 고정(Always on Top). 에디터·터미널 이동 없이 바로 참조·복사.</p>
-              </div>
-              <div class="card">
-                <div class="ico">🤖</div>
-                <h3>MCP Native</h3>
-                <p>Claude Desktop과 프로토콜로 연동. 대화형 코딩 중 환경 변수를 자동 주입·분석.</p>
-              </div>
-              <div class="card">
-                <div class="ico">🖥️</div>
-                <h3>80s Retro UI</h3>
-                <p>Windows 1.0~3.1 감성의 픽셀 퍼펙트 베벨 UI. 가볍고(수 MB) 빠른 Tauri 기반.</p>
-              </div>
-            </div>
-          </section>
+        <!-- Pro -->
+        <div class="plan pro raised">
+          <span class="ribbon">ONE-TIME</span>
+          <div class="p-title"><span>★ Pro.exe</span><span class="p-close">✕</span></div>
+          <div class="p-body">
+            <h3>Pro</h3>
+            <p class="price">$9.99 <small>/ 평생 1회 결제</small></p>
+            <p class="note">구독 없음. 추가 비용 없음.</p>
+            <ul>
+              <li><span class="yes">✔</span> 프로젝트 <b>무제한</b> 생성</li>
+              <li><span class="yes">✔</span> 변수 <b>무제한</b> 등록</li>
+              <li><span class="yes">✔</span> <b>커스텀 테마</b> · 환경별 컬러</li>
+              <li><span class="yes">✔</span> <b>Claude MCP 권한 잠금 해제</b></li>
+              <li><span class="yes">✔</span> 마스터 키 보안 스토리지</li>
+              <li><span class="yes">✔</span> 오프라인 라이선스 인증</li>
+            </ul>
+            <a href="#download" class="btn primary" id="buyPro">★ Pro 구매 — $9.99</a>
+          </div>
+        </div>
 
-          <!-- ===== MCP ===== -->
-          <section id="mcp" class="panel alt">
-            <h2>▍AI와 안전하게 연동</h2>
-            <p class="lead">
-              <code>envyou --mcp</code> 모드로 Claude Desktop과 STDIO 프로토콜 통신.
-              AI가 환경 변수를 읽거나 쓸 때 <b>반드시 사용자 물리 승인 팝업</b>이 떠야만 데이터가 전달됩니다.
-            </p>
-            <div class="code-win">
-              <div class="code-title">claude_desktop_config.json</div>
-              <pre><code>{
-  "mcpServers": {
-    "envyou": {
-      "command": "/Applications/envyou.app/Contents/MacOS/envyou",
-      "args": ["--mcp"],
-      "env": {}
-    }
-  }
-}</code></pre>
-            </div>
-            <p class="hint">설정 메뉴의 <b>“Link with Claude Desktop”</b> 버튼 한 번이면 기존 MCP 서버를 보존한 채 자동 병합됩니다.</p>
-          </section>
+      </div>
+    </section>
 
-          <!-- ===== Pricing ===== -->
-          <section id="pricing" class="panel">
-            <h2>▍가격</h2>
-            <div class="price-grid">
-              <div class="price-card">
-                <h3>Free</h3>
-                <p class="price">₩0</p>
-                <ul>
-                  <li>✔ 프로젝트 최대 3개</li>
-                  <li>✔ 프로젝트당 변수 10개</li>
-                  <li>✔ 전역 단축키 토글</li>
-                  <li>✔ 로컬 암호화 저장</li>
-                </ul>
-                <a class="btn" href="#download">다운로드</a>
-              </div>
-              <div class="price-card pro">
-                <div class="ribbon">평생 소장</div>
-                <h3>Pro</h3>
-                <p class="price">$9.99 <small>/ 1회 결제</small></p>
-                <ul>
-                  <li>✔ 프로젝트 <b>무제한</b></li>
-                  <li>✔ 변수 <b>무제한</b></li>
-                  <li>✔ MCP 서버 기능 잠금 해제</li>
-                  <li>✔ 마스터 키 보안 스토리지</li>
-                  <li>✔ 환경별 커스텀 테두리 컬러</li>
-                </ul>
-                <a class="btn primary" href="#download">Pro 받기</a>
-                <p class="micro">Paddle 1회 결제 · 구독 없음 · 오프라인 인증</p>
-              </div>
-            </div>
-          </section>
+    <!-- Download -->
+    <section class="panel alt" id="download">
+      <div class="sec-title"><span class="chip">03</span><h2>다운로드</h2></div>
+      <p class="sec-sub">설치 1분. 지금 받아서 첫 프로젝트를 띄워보세요.</p>
+      <div class="cta-row">
+        <a href="#" class="btn primary big dl" data-os="Windows">⊞ Download for Windows <small style="font-weight:normal">(.msi)</small></a>
+        <a href="#" class="btn big dl" data-os="macOS">⌘ Download for macOS <small style="font-weight:normal">(.dmg)</small></a>
+        <a href="#" class="btn big dl" data-os="Linux">🐧 Linux <small style="font-weight:normal">(AppImage)</small></a>
+      </div>
+      <p class="sec-sub" style="margin-top:14px;margin-bottom:0">⚠ 정식 빌드 준비 중입니다 — 버튼을 누르면 릴리스 알림 안내가 표시됩니다.</p>
+    </section>
 
-          <!-- ===== Download ===== -->
-          <section id="download" class="panel alt">
-            <h2>▍다운로드</h2>
-            <p class="lead">데스크톱 앱을 받아 바로 시작하세요. 설치는 1분이면 끝.</p>
-            <div class="dl-grid">
-              <a class="dl-card" data-platform="macos" href="#" rel="nofollow">
-                <div class="dl-ico"></div>
-                <div>
-                  <b>macOS</b>
-                  <small>Apple Silicon · Intel (.dmg)</small>
-                </div>
-              </a>
-              <a class="dl-card" data-platform="windows" href="#" rel="nofollow">
-                <div class="dl-ico"></div>
-                <div>
-                  <b>Windows</b>
-                  <small>10 / 11 (.msi)</small>
-                </div>
-              </a>
-              <a class="dl-card" data-platform="linux" href="#" rel="nofollow">
-                <div class="dl-ico">🐧</div>
-                <div>
-                  <b>Linux</b>
-                  <small>AppImage · .deb</small>
-                </div>
-              </a>
-            </div>
-            <p id="dl-note" class="hint">
-              ⚠ 정식 빌드 준비 중입니다 — 버튼은 곧 릴리스 링크로 연결됩니다.
-            </p>
-          </section>
-        </main>
+  </main>
 
-        <footer class="footer">
-          <span>© <span id="year"></span> envyou</span>
-          <span class="sep">·</span>
-          <a href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub</a>
-          <span class="sep">·</span>
-          <span>Made with Tauri + Rust 🦀</span>
-        </footer>
+  <!-- ===== Footer ===== -->
+  <footer class="foot">
+    <div class="foot-grid">
+      <div>
+        <div class="brand"><span class="mark" style="width:22px;height:22px;background:#000080;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;border-top:2px solid #fff;border-left:2px solid #fff;border-right:2px solid #000;border-bottom:2px solid #000">e</span> envyou</div>
+        <div class="links">
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#download">Download</a>
+          <a href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub ↗</a>
+        </div>
+      </div>
+      <div class="biz">
+        <b>ETERNALSIX</b> · 대표 Areum Seong<br>
+        사업자등록번호 303-28-65658<br>
+        경기도 수원시 영통구 삼성로 186-1 4층<br>
+        문의: <a href="mailto:ceo@eternalsix.com">ceo@eternalsix.com</a>
       </div>
     </div>
+    <div class="copyright">
+      <span>© <span id="year"></span> ETERNALSIX. All rights reserved.</span>
+      <span>Made with Tauri + Rust 🦀 · Local-First Forever</span>
+    </div>
+  </footer>
 
-    <script src="script.js"></script>
-  </body>
+  <!-- ===== Status bar ===== -->
+  <div class="statusbar">
+    <span id="statusText">Ready.</span>
+    <span class="grip">◢</span>
+  </div>
+</div>
+
+<!-- ===== Retro modal ===== -->
+<div class="overlay" id="overlay">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="d-title"><span id="dlgTitle">envyou</span><span class="x" id="dlgX">✕</span></div>
+    <div class="d-body">
+      <div class="d-ico" id="dlgIco">ℹ️</div>
+      <div id="dlgMsg">메시지</div>
+    </div>
+    <div class="d-actions">
+      <button class="btn primary" id="dlgOk" style="min-width:90px;justify-content:center">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(s,r){return (r||document).querySelector(s)};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+
+  // Footer year
+  $("#year").textContent=new Date().getFullYear();
+
+  // ---- OS detection -> label the GNB download button ----
+  var ua=navigator.userAgent||"", os="Windows";
+  if(/Mac/i.test(ua)) os="macOS";
+  else if(/Linux/i.test(ua)&&!/Android/i.test(ua)) os="Linux";
+  else if(/Windows/i.test(ua)) os="Windows";
+  var osEl=$("#gnbOS"); if(osEl) osEl.textContent=os;
+
+  // ---- Mobile menu toggle ----
+  var nav=$("#nav"), mt=$("#menuToggle");
+  if(mt){mt.addEventListener("click",function(){nav.classList.toggle("open")});}
+  $$("#nav a").forEach(function(a){a.addEventListener("click",function(){nav.classList.remove("open")})});
+
+  // ---- Status bar feedback on hover ----
+  var status=$("#statusText");
+  function say(m){ if(status) status.textContent=m; }
+  $$('a[href^="#"]').forEach(function(a){
+    a.addEventListener("mouseenter",function(){say("→ "+(a.textContent||"").trim());});
+    a.addEventListener("mouseleave",function(){say("Ready.");});
+  });
+
+  // ---- Retro modal ----
+  var overlay=$("#overlay");
+  function openDlg(title,msg,ico){
+    $("#dlgTitle").textContent=title;
+    $("#dlgMsg").innerHTML=msg;
+    $("#dlgIco").textContent=ico||"ℹ️";
+    overlay.classList.add("show");
+    $("#dlgOk").focus();
+  }
+  function closeDlg(){overlay.classList.remove("show");}
+  $("#dlgOk").addEventListener("click",closeDlg);
+  $("#dlgX").addEventListener("click",closeDlg);
+  overlay.addEventListener("click",function(e){if(e.target===overlay)closeDlg();});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDlg();});
+
+  // ---- Download buttons (placeholder until release) ----
+  $$(".dl").forEach(function(b){
+    b.addEventListener("click",function(e){
+      e.preventDefault();
+      var t=b.getAttribute("data-os")||os;
+      openDlg("envyou Setup — "+t,
+        "<b>"+t+"</b> 정식 빌드는 곧 공개됩니다.<br><br>릴리스 소식을 가장 먼저 받으시려면 <a href='https://github.com/samduck150906-lgtm/envyou' target='_blank' rel='noopener'>GitHub 저장소</a>를 Watch 해주세요!",
+        "💾");
+      say("Download: "+t+" (coming soon)");
+    });
+  });
+
+  // GNB download routes to the section; if release exists later, swap href.
+  $("#gnbDownload").addEventListener("click",function(){say("Jumping to downloads…");});
+
+  // ---- Pro buy (placeholder for Paddle checkout) ----
+  $("#buyPro").addEventListener("click",function(e){
+    e.preventDefault();
+    openDlg("Paddle Checkout",
+      "Pro 라이선스(<b>$9.99 · 1회 결제</b>) 결제는 정식 출시와 함께 Paddle로 연결됩니다.<br><br>구독이 아니라 <b>평생 소장</b>이며, 이메일로 오프라인 인증 키가 발급됩니다.",
+      "🛒");
+  });
+})();
+</script>
+</body>
 </html>
