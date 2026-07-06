@@ -21,8 +21,19 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
-            // Open the encrypted store at the default OS data location.
-            let store = Store::open_default()?;
+            // Decide the initial lock state. A password-protected (v2) vault
+            // starts locked (None) and waits for the frontend to unlock it; a
+            // device-bound or not-yet-created vault opens immediately.
+            let path = envyou_core::core::storage::default_data_dir()?
+                .join(envyou_core::core::storage::STATE_FILE);
+            let starts_locked = std::fs::read_to_string(&path)
+                .map(|raw| envyou_core::core::crypto::is_password_protected(&raw))
+                .unwrap_or(false);
+            let store = if starts_locked {
+                None
+            } else {
+                Some(Store::open_default()?)
+            };
             app.manage(AppState {
                 store: Mutex::new(store),
             });
@@ -47,10 +58,14 @@ pub fn run() {
                 .build(app)?;
 
             // Apply the persisted "always on top" preference (spec §3.2).
+            // Skipped when the vault is locked — the setting is applied after
+            // unlock instead.
             if let Some(window) = app.get_webview_window("main") {
-                if let Ok(state) = app.state::<AppState>().store.lock() {
-                    if let Ok(s) = state.load() {
-                        let _ = window.set_always_on_top(s.settings.always_on_top);
+                if let Ok(guard) = app.state::<AppState>().store.lock() {
+                    if let Some(store) = guard.as_ref() {
+                        if let Ok(s) = store.load() {
+                            let _ = window.set_always_on_top(s.settings.always_on_top);
+                        }
                     }
                 }
             }
@@ -67,6 +82,9 @@ pub fn run() {
             commands::save_settings,
             commands::activate_license,
             commands::link_claude_desktop,
+            commands::vault_status,
+            commands::unlock_vault,
+            commands::set_master_password,
             set_always_on_top,
         ])
         .run(tauri::generate_context!())

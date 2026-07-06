@@ -13,6 +13,7 @@
     selectedProjectId: null,
     revealAll: false, // session-only "show values" toggle
     lastError: "", // last mutation error, surfaced to modals without DOM round-tripping
+    locked: false, // true while the master-password unlock gate is up
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -202,7 +203,7 @@
 
   // ---- Modals ---------------------------------------------------------------
   let lastFocused = null;
-  function openModal(title, contentNode) {
+  function openModal(title, contentNode, dismissible = true) {
     // Remember what had focus so we can restore it when the dialog closes.
     lastFocused = document.activeElement;
     const modal = $("#modal");
@@ -214,7 +215,9 @@
       el("div", { class: "titlebar" }, [
         el("span", { class: "title", text: "■ " + title }),
         el("div", { class: "title-buttons" }, [
-          el("button", { class: "title-btn", text: "✕", title: "Close", "aria-label": "Close dialog", onclick: closeModal }),
+          dismissible
+            ? el("button", { class: "title-btn", text: "✕", title: "Close", "aria-label": "Close dialog", onclick: closeModal })
+            : null,
         ]),
       ])
     );
@@ -222,6 +225,8 @@
     $("#modal-overlay").classList.remove("hidden");
   }
   function closeModal() {
+    // The unlock gate cannot be dismissed — there is no usable app behind it.
+    if (state.locked) return;
     $("#modal-overlay").classList.add("hidden");
     // Restore focus to the control that opened the dialog.
     if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
@@ -399,6 +404,16 @@
       el("label", { class: "checkbox-row" }, [mask, document.createTextNode(" Mask sensitive values")]),
       el("hr"),
       el("div", { class: "field" }, [
+        el("label", { text: "Encryption" }),
+        el("button", {
+          class: "btn",
+          text: "Set master password »",
+          onclick: () => masterPasswordModal(),
+        }),
+        el("p", { class: "hint", text: "Add an Argon2id master password on top of device encryption." }),
+      ]),
+      el("hr"),
+      el("div", { class: "field" }, [
         el("label", { text: "Claude Desktop (MCP)" }),
         el("button", {
           class: "btn",
@@ -419,6 +434,70 @@
         el("button", { class: "btn primary", text: "Save", onclick: save }),
       ]),
     ]);
+  }
+
+  // ---- Master password: unlock gate & setup --------------------------------
+  function showUnlock() {
+    state.locked = true;
+    const pw = el("input", { type: "password", placeholder: "master password", "aria-label": "Master password" });
+    const err = el("p", { class: "error-text" });
+    const submit = async () => {
+      try {
+        state.data = await window.api.unlockVault(pw.value);
+        state.locked = false;
+        closeModal();
+        if (state.data.projects.length) state.selectedProjectId = state.data.projects[0].id;
+        render();
+        updatePinButton();
+        status("Vault unlocked");
+      } catch (e) {
+        err.textContent = String(e);
+        pw.value = "";
+        pw.focus();
+      }
+    };
+    pw.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+    openModal(
+      "Unlock envyou",
+      [
+        el("p", { class: "hint", text: "This vault is protected by a master password. Enter it to continue." }),
+        el("div", { class: "field" }, [el("label", { text: "Master password" }), pw]),
+        err,
+        el("div", { class: "modal-actions" }, [
+          el("button", { class: "btn primary", text: "Unlock", onclick: submit }),
+        ]),
+      ],
+      false // not dismissible
+    );
+    pw.focus();
+  }
+
+  function masterPasswordModal() {
+    const pw = el("input", { type: "password", placeholder: "at least 8 characters", "aria-label": "New master password" });
+    const pw2 = el("input", { type: "password", placeholder: "confirm password", "aria-label": "Confirm master password" });
+    const err = el("p", { class: "error-text" });
+    const save = async () => {
+      if (pw.value !== pw2.value) {
+        err.textContent = "Passwords do not match.";
+        return;
+      }
+      const ok = await run(window.api.setMasterPassword(pw.value), "Master password set — vault re-encrypted");
+      if (ok) closeModal();
+      else err.textContent = state.lastError;
+    };
+    openModal("Set Master Password", [
+      el("p", { class: "hint", text: "Re-encrypts your vault with Argon2id. You'll enter this password each time envyou starts. It is never stored." }),
+      el("div", { class: "field" }, [el("label", { text: "New password" }), pw]),
+      el("div", { class: "field" }, [el("label", { text: "Confirm" }), pw2]),
+      err,
+      el("div", { class: "modal-actions" }, [
+        el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
+        el("button", { class: "btn primary", text: "Set password", onclick: save }),
+      ]),
+    ]);
+    pw.focus();
   }
 
   function upgradeModal() {
@@ -476,7 +555,7 @@
   }
 
   // ---- Wire up --------------------------------------------------------------
-  function init() {
+  async function init() {
     $("#add-project-btn").addEventListener("click", () => projectModal(null));
     $("#add-var-btn").addEventListener("click", () => {
       const p = selectedProject();
@@ -504,10 +583,21 @@
       else trapFocus(e);
     });
 
-    refresh().then(() => {
-      updatePinButton();
+    // Gate on the vault lock state before loading any data.
+    let vs = { passwordProtected: false, unlocked: true };
+    try {
+      vs = await window.api.vaultStatus();
+    } catch (e) {
+      status("Could not read vault status: " + e);
+    }
+    if (vs.passwordProtected && !vs.unlocked) {
       if (!window.api.inTauri) status("Browser preview (mock data)");
-    });
+      showUnlock();
+      return;
+    }
+    await refresh();
+    updatePinButton();
+    if (!window.api.inTauri) status("Browser preview (mock data)");
   }
 
   document.addEventListener("DOMContentLoaded", init);

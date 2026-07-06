@@ -115,6 +115,14 @@
     },
     link_claude_desktop: async () =>
       "(browser preview) Claude Desktop config would be merged on the desktop app.",
+    // Browser preview has no real vault lock — always unlocked, no password.
+    vault_status: async () => ({ exists: true, passwordProtected: false, unlocked: true }),
+    unlock_vault: async () => loadMock(),
+    set_master_password: async ({ password }) => {
+      if ((password || "").trim().length < 8)
+        throw "master password must be at least 8 characters";
+      return loadMock();
+    },
   };
 
   // ---- Public surface -------------------------------------------------------
@@ -142,5 +150,12 @@
     linkClaudeDesktop: () =>
       inTauri ? tauriInvoke("link_claude_desktop") : mock.link_claude_desktop(),
     setAlwaysOnTop: (enabled) => (inTauri ? tauriSetAlwaysOnTop(enabled) : Promise.resolve()),
+    vaultStatus: () => (inTauri ? tauriInvoke("vault_status") : mock.vault_status()),
+    unlockVault: (password) =>
+      inTauri ? tauriInvoke("unlock_vault", { password }) : mock.unlock_vault({ password }),
+    setMasterPassword: (password) =>
+      inTauri
+        ? tauriInvoke("set_master_password", { password })
+        : mock.set_master_password({ password }),
   };
 })();
