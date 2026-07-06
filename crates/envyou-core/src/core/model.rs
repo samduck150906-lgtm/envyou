@@ -34,7 +34,7 @@ impl Default for EnvYouLocalState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct License {
     #[serde(rename = "isPro")]
     pub is_pro: bool,
@@ -42,16 +42,6 @@ pub struct License {
     pub license_key: Option<String>,
     #[serde(rename = "activatedAt")]
     pub activated_at: Option<String>,
-}
-
-impl Default for License {
-    fn default() -> Self {
-        Self {
-            is_pro: false,
-            license_key: None,
-            activated_at: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -87,7 +77,11 @@ pub struct ProjectItem {
 
 impl ProjectItem {
     /// Create a new project with a freshly generated UUID v4.
-    pub fn new(name: impl Into<String>, color_tag: impl Into<String>, created_at: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        color_tag: impl Into<String>,
+        created_at: impl Into<String>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             name: name.into(),
@@ -193,7 +187,8 @@ mod tests {
         let mut s = EnvYouLocalState::default();
         for i in 0..FREE_MAX_PROJECTS {
             assert!(s.can_add_project());
-            s.projects.push(ProjectItem::new(format!("p{i}"), "#008080", "now"));
+            s.projects
+                .push(ProjectItem::new(format!("p{i}"), "#008080", "now"));
         }
         assert!(!s.can_add_project());
         s.license.is_pro = true;

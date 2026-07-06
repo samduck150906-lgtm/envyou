@@ -17,10 +17,7 @@ struct StoreAdapter {
 
 impl EnvStore for StoreAdapter {
     fn list_projects(&self) -> Vec<ProjectSummary> {
-        self.store
-            .load()
-            .map(|s| s.summaries())
-            .unwrap_or_default()
+        self.store.load().map(|s| s.summaries()).unwrap_or_default()
     }
 
     fn read_env_variables(&self, project_id: &str) -> Result<Vec<EnvVariable>, String> {
@@ -98,8 +95,8 @@ impl ApprovalGate for NativeApprovalGate {
 
 /// Build the server and pump STDIO until EOF.
 pub fn run_stdio() -> io::Result<()> {
-    let store = Store::open_default()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let store =
+        Store::open_default().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
     let server = McpServer::new(StoreAdapter { store }, NativeApprovalGate);
 
     let stdin = io::stdin();
@@ -111,7 +108,9 @@ pub fn run_stdio() -> io::Result<()> {
 mod tests {
     use super::*;
     use envyou_core::core::crypto::MasterKey;
-    use envyou_core::core::model::{EnvVariable, EnvYouLocalState, ProjectItem, FREE_MAX_VARS_PER_PROJECT};
+    use envyou_core::core::model::{
+        EnvVariable, EnvYouLocalState, ProjectItem, FREE_MAX_VARS_PER_PROJECT,
+    };
     use envyou_core::core::storage::{Store, STATE_FILE};
 
     /// Build a free-tier store whose single project is already at the variable
@@ -148,7 +147,11 @@ mod tests {
         let vars = adapter.read_env_variables(&id).unwrap();
         let k0 = vars.iter().find(|v| v.key == "K0").unwrap();
         assert_eq!(k0.value, "updated-value");
-        assert_eq!(vars.len(), FREE_MAX_VARS_PER_PROJECT, "no new variable should be added");
+        assert_eq!(
+            vars.len(),
+            FREE_MAX_VARS_PER_PROJECT,
+            "no new variable should be added"
+        );
     }
 
     #[test]
@@ -159,8 +162,14 @@ mod tests {
             .expect_err("adding a new variable beyond the free cap must fail");
 
         // The error must be about the cap and must never echo the secret value.
-        assert!(err.to_lowercase().contains("limit"), "expected a limit message, got: {err}");
-        assert!(!err.contains("super-secret-value"), "error message leaked the secret value");
+        assert!(
+            err.to_lowercase().contains("limit"),
+            "expected a limit message, got: {err}"
+        );
+        assert!(
+            !err.contains("super-secret-value"),
+            "error message leaked the secret value"
+        );
 
         // And the rejected variable must not have been persisted.
         let vars = adapter.read_env_variables(&id).unwrap();

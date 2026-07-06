@@ -281,7 +281,10 @@ mod tests {
 
         let raw = fs::read_to_string(&path).unwrap();
         assert!(!raw.contains("must-not-appear-on-disk"));
-        assert!(raw.contains("argon2id"), "v2 envelope should record the kdf");
+        assert!(
+            raw.contains("argon2id"),
+            "v2 envelope should record the kdf"
+        );
         assert!(store.is_locked_with_password().unwrap());
         assert_eq!(store.load().unwrap(), state);
     }
@@ -290,17 +293,24 @@ mod tests {
     fn wrong_master_password_cannot_load() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(STATE_FILE);
-        Store::with_password(&path, "right").save(&EnvYouLocalState::default()).unwrap();
+        Store::with_password(&path, "right")
+            .save(&EnvYouLocalState::default())
+            .unwrap();
 
         let wrong = Store::with_password(&path, "wrong");
-        assert!(wrong.load().is_err(), "wrong password must not decrypt the vault");
+        assert!(
+            wrong.load().is_err(),
+            "wrong password must not decrypt the vault"
+        );
     }
 
     #[test]
     fn device_store_refuses_password_protected_vault() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(STATE_FILE);
-        Store::with_password(&path, "pw").save(&EnvYouLocalState::default()).unwrap();
+        Store::with_password(&path, "pw")
+            .save(&EnvYouLocalState::default())
+            .unwrap();
 
         // A device-bound Store must not silently succeed on a password vault;
         // it should signal that a password unlock is required.
@@ -317,7 +327,9 @@ mod tests {
         // Start as a device-bound vault with real data.
         let device = Store::new(&path, MasterKey::derive(b"machine"));
         let mut state = EnvYouLocalState::default();
-        state.projects.push(ProjectItem::new("api", "#000080", "now"));
+        state
+            .projects
+            .push(ProjectItem::new("api", "#000080", "now"));
         device.save(&state).unwrap();
 
         // Migrate to a master password; data must survive and now be v2.
@@ -330,6 +342,8 @@ mod tests {
             Store::with_password(&path, "hunter2").load().unwrap(),
             state
         );
-        assert!(Store::new(&path, MasterKey::derive(b"machine")).load().is_err());
+        assert!(Store::new(&path, MasterKey::derive(b"machine"))
+            .load()
+            .is_err());
     }
 }

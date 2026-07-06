@@ -226,7 +226,10 @@ pub fn save_settings(state: State<AppState>, settings: Settings) -> CmdResult<En
 }
 
 #[tauri::command]
-pub fn activate_license(state: State<AppState>, license_key: String) -> CmdResult<EnvYouLocalState> {
+pub fn activate_license(
+    state: State<AppState>,
+    license_key: String,
+) -> CmdResult<EnvYouLocalState> {
     // Validate + machine-bind the key offline (spec §6.3).
     license::activate(&license_key, &machine_id()).map_err(|e| e.to_string())?;
     let mut s = load(&state)?;
@@ -253,8 +256,8 @@ pub fn link_claude_desktop() -> CmdResult<String> {
         .to_string();
 
     let existing = std::fs::read_to_string(&path).ok();
-    let merged = claude_config::merge_config_str(existing.as_deref(), &exe)
-        .map_err(|e| e.to_string())?;
+    let merged =
+        claude_config::merge_config_str(existing.as_deref(), &exe).map_err(|e| e.to_string())?;
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;

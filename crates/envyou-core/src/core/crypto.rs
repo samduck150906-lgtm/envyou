@@ -100,7 +100,12 @@ pub fn is_password_protected(envelope_json: &str) -> bool {
         == Some(KDF_ARGON2ID)
 }
 
-fn seal(key: &MasterKey, plaintext: &[u8], kdf: Option<String>, salt: Option<String>) -> Result<String> {
+fn seal(
+    key: &MasterKey,
+    plaintext: &[u8],
+    kdf: Option<String>,
+    salt: Option<String>,
+) -> Result<String> {
     let cipher = key.cipher();
     let mut nonce_bytes = [0u8; 12];
     rand::thread_rng().fill_bytes(&mut nonce_bytes);

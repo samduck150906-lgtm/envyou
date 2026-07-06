@@ -61,7 +61,11 @@ pub struct LicenseClaims {
     pub plan: String,
     /// Optional hardware binding. When present, the license is only valid on a
     /// machine whose id matches (see [`crate::core::storage::machine_id`]).
-    #[serde(rename = "hardwareId", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "hardwareId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub hardware_id: Option<String>,
     /// ISO-8601 issue time (informational).
     #[serde(rename = "issuedAt")]
@@ -91,7 +95,10 @@ pub fn is_well_formed(license: &str) -> bool {
         && !parts[0].is_empty()
         && !parts[1].is_empty()
         && B64URL.decode(parts[0]).is_ok()
-        && B64URL.decode(parts[1]).map(|s| s.len() == 64).unwrap_or(false)
+        && B64URL
+            .decode(parts[1])
+            .map(|s| s.len() == 64)
+            .unwrap_or(false)
 }
 
 /// Decode the embedded verification key. Returns an error while the placeholder
@@ -99,7 +106,8 @@ pub fn is_well_formed(license: &str) -> bool {
 fn embedded_verifying_key() -> Result<VerifyingKey> {
     verifying_key_from_b64(LICENSE_PUBLIC_KEY_B64).map_err(|_| {
         Error::License(
-            "license public key is not configured in this build (set LICENSE_PUBLIC_KEY_B64)".into(),
+            "license public key is not configured in this build (set LICENSE_PUBLIC_KEY_B64)"
+                .into(),
         )
     })
 }
@@ -130,9 +138,9 @@ fn verify_license_with_key(
     key: &VerifyingKey,
 ) -> Result<LicenseClaims> {
     let license = license.trim();
-    let (payload_b64, sig_b64) = license
-        .split_once('.')
-        .ok_or_else(|| Error::License("malformed license (expected <payload>.<signature>)".into()))?;
+    let (payload_b64, sig_b64) = license.split_once('.').ok_or_else(|| {
+        Error::License("malformed license (expected <payload>.<signature>)".into())
+    })?;
 
     let sig_bytes = B64URL
         .decode(sig_b64)
