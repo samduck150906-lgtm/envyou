@@ -5,14 +5,25 @@
   "use strict";
 
   const COLORS = ["#008080", "#000080", "#FF0000", "#808000", "#800080", "#008000", "#000000"];
+  const FREE_MAX_PROJECTS = 3;
+  const FREE_MAX_VARS = 10;
 
   const state = {
     data: null,
     selectedProjectId: null,
     revealAll: false, // session-only "show values" toggle
+    lastError: "", // last mutation error, surfaced to modals without DOM round-tripping
   };
 
   const $ = (sel) => document.querySelector(sel);
+
+  // Make a click handler also fire on Enter/Space for keyboard users.
+  const onActivate = (fn) => (e) => {
+    if (e.type === "click" || e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn(e);
+    }
+  };
   const el = (tag, props = {}, children = []) => {
     const node = document.createElement(tag);
     Object.entries(props).forEach(([k, v]) => {
@@ -74,14 +85,27 @@
   function renderProjects() {
     const list = $("#project-list");
     list.innerHTML = "";
+    const pro = state.data.license.isPro;
+    // Free-tier usage counter on the panel head (e.g. "PROJECTS 2/3").
+    const head = $("#projects-count");
+    if (head) head.textContent = pro ? "" : `${state.data.projects.length}/${FREE_MAX_PROJECTS}`;
+
     state.data.projects.forEach((p) => {
       const li = el("li", {
         class: p.id === state.selectedProjectId ? "active" : "",
+        role: "button",
+        tabindex: "0",
+        "aria-label": `Project ${p.name}, ${p.variables.length} variables`,
+        "aria-pressed": p.id === state.selectedProjectId ? "true" : "false",
         title: p.name,
-        onclick: () => {
+        onclick: onActivate(() => {
           state.selectedProjectId = p.id;
           render();
-        },
+        }),
+        onkeydown: onActivate(() => {
+          state.selectedProjectId = p.id;
+          render();
+        }),
       });
       li.style.borderLeftColor = p.colorTag;
       li.appendChild(el("span", { class: "swatch" }));
@@ -91,7 +115,7 @@
       list.appendChild(li);
     });
     if (!state.data.projects.length) {
-      list.appendChild(el("li", { class: "empty-hint", text: "No projects yet." }));
+      list.appendChild(el("li", { class: "empty-hint", text: "No projects yet — click + to add one." }));
     }
   }
 
@@ -110,23 +134,32 @@
       return;
     }
 
+    // Free-tier variable counter (e.g. "8/10") on the panel head.
+    const vc = $("#vars-count");
+    if (vc) vc.textContent = state.data.license.isPro ? "" : `${p.variables.length}/${FREE_MAX_VARS}`;
+
     const maskGlobal = state.data.settings.maskSensitiveData && !state.revealAll;
     p.variables.forEach((v) => {
       const masked = maskGlobal && v.isMasked;
-      const shown = masked ? "••••••••" : v.value;
+      const shown = masked ? "••••" : v.value;
       const row = el("div", { class: "var-row" }, [
         el("span", { class: "var-key", text: v.key, title: v.comment || v.key }),
         el("span", {
           class: "var-val",
           text: shown,
+          role: "button",
+          tabindex: "0",
+          "aria-label": `Copy value of ${v.key}`,
           title: "Click to copy",
-          onclick: () => copyValue(v),
+          onclick: onActivate(() => copyValue(v)),
+          onkeydown: onActivate(() => copyValue(v)),
         }),
         el("span", { class: "var-actions" }, [
-          el("button", { class: "mini-btn", title: "Edit", text: "✎", onclick: () => editVarModal(p, v) }),
+          el("button", { class: "mini-btn", title: "Edit", "aria-label": `Edit ${v.key}`, text: "✎", onclick: () => editVarModal(p, v) }),
           el("button", {
             class: "mini-btn",
             title: "Delete",
+            "aria-label": `Delete ${v.key}`,
             text: "✕",
             onclick: () => deleteVar(p, v),
           }),
@@ -149,10 +182,14 @@
   async function run(promise, okMsg) {
     try {
       state.data = await promise;
+      state.lastError = "";
       render();
       if (okMsg) status(okMsg);
       return true;
     } catch (e) {
+      // Keep the message on state so modals can show it directly instead of
+      // scraping it back out of the status bar's DOM.
+      state.lastError = String(e);
       status("✕ " + e);
       return false;
     }
@@ -164,14 +201,20 @@
   }
 
   // ---- Modals ---------------------------------------------------------------
+  let lastFocused = null;
   function openModal(title, contentNode) {
+    // Remember what had focus so we can restore it when the dialog closes.
+    lastFocused = document.activeElement;
     const modal = $("#modal");
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", title);
     modal.innerHTML = "";
     modal.appendChild(
       el("div", { class: "titlebar" }, [
         el("span", { class: "title", text: "■ " + title }),
         el("div", { class: "title-buttons" }, [
-          el("button", { class: "title-btn", text: "✕", title: "Close", onclick: closeModal }),
+          el("button", { class: "title-btn", text: "✕", title: "Close", "aria-label": "Close dialog", onclick: closeModal }),
         ]),
       ])
     );
@@ -180,6 +223,28 @@
   }
   function closeModal() {
     $("#modal-overlay").classList.add("hidden");
+    // Restore focus to the control that opened the dialog.
+    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+    lastFocused = null;
+  }
+
+  // Keep Tab focus inside the open dialog (simple focus trap).
+  function trapFocus(e) {
+    if (e.key !== "Tab") return;
+    if ($("#modal-overlay").classList.contains("hidden")) return;
+    const focusable = $("#modal").querySelectorAll(
+      'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   function colorPicker(initial, onPick) {
@@ -216,19 +281,22 @@
         err.textContent = "Name is required.";
         return;
       }
+      // Snapshot existing ids so we can identify the newly-created project by id
+      // rather than assuming it is last in the returned array (the backend may
+      // order projects differently).
+      const priorIds = new Set(state.data.projects.map((p) => p.id));
       const ok = existing
         ? await run(window.api.renameProject(existing.id, name, picker.get()), "Saved")
         : await run(window.api.createProject(name, picker.get()), "Project created");
       if (ok) {
         if (!existing) {
-          // select the newly created project
-          const created = state.data.projects[state.data.projects.length - 1];
-          state.selectedProjectId = created.id;
+          const created = state.data.projects.find((p) => !priorIds.has(p.id));
+          if (created) state.selectedProjectId = created.id;
           render();
         }
         closeModal();
       } else {
-        err.textContent = $("#status-text").textContent;
+        err.textContent = state.lastError;
       }
     };
 
@@ -285,14 +353,14 @@
         "Saved " + key
       );
       if (ok) closeModal();
-      else err.textContent = $("#status-text").textContent.replace(/^✕ /, "");
+      else err.textContent = state.lastError;
     };
 
     openModal(existing ? "Edit Variable" : "New Variable", [
       el("div", { class: "field" }, [el("label", { text: "Key" }), keyInput]),
       el("div", { class: "field" }, [el("label", { text: "Value" }), valInput]),
       el("div", { class: "field" }, [el("label", { text: "Comment" }), commentInput]),
-      el("label", { class: "checkbox-row" }, [maskCheck, document.createTextNode(" Mask on screen (***)")]),
+      el("label", { class: "checkbox-row" }, [maskCheck, document.createTextNode(" Mask on screen (••••)")]),
       err,
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
@@ -362,17 +430,17 @@
       ]);
       return;
     }
-    const keyInput = el("input", { type: "text", placeholder: "XXXX-XXXX-XXXX-XXXX" });
+    const keyInput = el("input", { type: "text", placeholder: "paste your license key", "aria-label": "License key" });
     const err = el("p", { class: "error-text" });
     const activate = async () => {
       const ok = await run(window.api.activateLicense(keyInput.value), "Pro activated! ✦");
       if (ok) closeModal();
-      else err.textContent = $("#status-text").textContent.replace(/^✕ /, "");
+      else err.textContent = state.lastError;
     };
     openModal("Upgrade to Pro — $9.99 one-time", [
       el("p", { class: "hint", text: "Unlimited projects & variables, MCP server, custom env colors." }),
       el("div", { class: "field" }, [el("label", { text: "License key" }), keyInput]),
-      el("p", { class: "hint", text: "Purchased via Paddle — key arrives by email. Offline activation." }),
+      el("p", { class: "hint", text: "Purchased online — key arrives by email. Offline activation." }),
       err,
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
@@ -386,7 +454,9 @@
   let pinned = true;
   function updatePinButton() {
     pinned = state.data ? state.data.settings.alwaysOnTop : true;
-    $("#pin-btn").classList.toggle("active", pinned);
+    const btn = $("#pin-btn");
+    btn.classList.toggle("active", pinned);
+    btn.setAttribute("aria-pressed", pinned ? "true" : "false");
   }
   async function togglePin() {
     pinned = !pinned;
@@ -431,6 +501,7 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeModal();
+      else trapFocus(e);
     });
 
     refresh().then(() => {
