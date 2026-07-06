@@ -30,6 +30,8 @@ jobs:
         run: cargo clippy -p envyou-core --all-targets -- -D warnings
       - name: Test (core)
         run: cargo test -p envyou-core
+      - name: Test (core, issuer feature)
+        run: cargo test -p envyou-core --features issuer
 
   # Full workspace including the Tauri desktop shell. Compiles on all three
   # target OSes so a change that only breaks the GUI crate is still caught;

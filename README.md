@@ -207,17 +207,30 @@ Licenses are compact **Ed25519-signed tokens**: `<payload>.<signature>`
 `hardwareId`, `issuedAt`, optional `expiresAt`, and `features`. Verification is
 fully offline against the embedded public key.
 
-**Setting up signing (product owner, one time, offline):**
+**Setting up signing (product owner, one time, offline).** The repo ships an
+offline `license_tool` (gated behind the `issuer` feature so the app itself can
+never mint licenses):
 
-1. Generate an Ed25519 keypair on an offline/secure machine.
-2. Put the **32-byte public key (standard base64)** into
-   `crates/envyou-core/src/core/license.rs` → `LICENSE_PUBLIC_KEY_B64`.
-3. Keep the **private key** in your payment provider's secret store / a hardware
-   token. **Never commit it to this repository or bundle it in the app.**
-4. On each purchase, a webhook (Paddle / Lemon Squeezy) signs a license payload
-   with the private key and emails the token to the buyer.
+```bash
+# 1. Generate a keypair. Writes the PRIVATE key to a 0600 file (keep it secret)
+#    and prints the PUBLIC key to paste into LICENSE_PUBLIC_KEY_B64.
+cargo run -p envyou-core --features issuer --example license_tool -- \
+    keygen envyou-signing.key
 
-Until step 2 is done, the build rejects all activations by design.
+# 2. Paste the printed public key into
+#    crates/envyou-core/src/core/license.rs -> LICENSE_PUBLIC_KEY_B64
+
+# 3. Mint a license for a buyer (do this from your purchase webhook):
+cargo run -p envyou-core --features issuer --example license_tool -- \
+    issue envyou-signing.key --plan pro \
+    --hardware-id <machine-id> --expires 2027-07-06T00:00:00Z \
+    --features unlimited_projects
+```
+
+Keep the **private key** in your payment provider's secret store / a hardware
+token. **Never commit it** — `*-signing.key` is gitignored. On each purchase a
+webhook (Paddle / Lemon Squeezy) runs step 3 and emails the token to the buyer.
+Until the public key is configured, the build rejects all activations by design.
 
 ---
 

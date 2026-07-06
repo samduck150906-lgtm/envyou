@@ -196,6 +196,24 @@ pub fn verify(license: &str, hardware_id: &str) -> bool {
     verify_license(license, hardware_id).is_ok()
 }
 
+/// Mint a signed license token (`<payload>.<signature>`) from claims and a
+/// 32-byte Ed25519 **private** signing key.
+///
+/// Gated behind the `issuer` feature so the shipped desktop app — which never
+/// enables it — cannot sign licenses, only verify them. Used by the offline
+/// `license_tool` example. Producing a token here uses the exact same payload
+/// encoding [`verify_license`] checks, so any token this emits verifies against
+/// the matching public key.
+#[cfg(feature = "issuer")]
+pub fn issue_license(signing_key_bytes: &[u8; 32], claims: &LicenseClaims) -> Result<String> {
+    use ed25519_dalek::{Signer, SigningKey};
+    let sk = SigningKey::from_bytes(signing_key_bytes);
+    let payload = serde_json::to_vec(claims)?;
+    let payload_b64 = B64URL.encode(payload);
+    let sig = sk.sign(payload_b64.as_bytes());
+    Ok(format!("{payload_b64}.{}", B64URL.encode(sig.to_bytes())))
+}
+
 /// Whether an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ`) is in the past.
 /// Such timestamps sort lexicographically, so a string compare against "now"
 /// is correct without a date-time dependency.
@@ -348,6 +366,19 @@ mod tests {
         assert!(!is_well_formed("not-a-license"));
         assert!(!is_well_formed("only-one-part"));
         assert!(!is_well_formed(""));
+    }
+
+    // Guards that the offline issuer (license_tool) emits tokens the app accepts.
+    #[cfg(feature = "issuer")]
+    #[test]
+    fn issue_license_produces_app_verifiable_token() {
+        use ed25519_dalek::SigningKey;
+        let seed = [11u8; 32];
+        let vk = SigningKey::from_bytes(&seed).verifying_key();
+        let claims = pro_claims();
+        let token = issue_license(&seed, &claims).unwrap();
+        let verified = verify_license_with_key(&token, "machine-A", &vk).unwrap();
+        assert_eq!(verified, claims);
     }
 
     #[test]
