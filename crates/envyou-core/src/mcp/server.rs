@@ -374,6 +374,24 @@ mod tests {
     }
 
     #[test]
+    fn write_denied_does_not_persist_anything() {
+        let s = server(ApprovalDecision::Denied);
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"write_env_variable","arguments":{"projectId":"p1","key":"AWS_SECRET_KEY","value":"leak-me"}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        // The store must not have been mutated when the user denied the write.
+        assert!(
+            s.store.writes.borrow().is_empty(),
+            "a denied write must not reach the store"
+        );
+        // And the denied secret value must never appear in the response.
+        let text = r["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(!text.contains("leak-me"));
+    }
+
+    #[test]
     fn write_persists_when_approved() {
         let s = server(ApprovalDecision::Approved);
         let r = call(

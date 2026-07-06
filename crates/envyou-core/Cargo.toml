@@ -20,6 +20,8 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 directories = "5"
+ed25519-dalek = "2"
+argon2 = "0.5"
 
 [dev-dependencies]
 tempfile = "3"

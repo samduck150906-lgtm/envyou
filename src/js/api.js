@@ -103,10 +103,12 @@
       return saveMock(s);
     },
     activate_license: async ({ licenseKey }) => {
-      const ok = /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/.test(
-        (licenseKey || "").trim()
-      );
-      if (!ok) throw "license key format is invalid (expected XXXX-XXXX-XXXX-XXXX)";
+      // Browser preview only: the real app verifies an Ed25519-signed license
+      // token (<payload>.<signature>) in Rust. Here we just sanity-check the
+      // token shape so the preview can demo the Pro flow — no signature check.
+      const parts = (licenseKey || "").trim().split(".");
+      const ok = parts.length === 2 && parts[0].length > 0 && parts[1].length > 0;
+      if (!ok) throw "license format is invalid (expected a signed token <payload>.<signature>)";
       const s = loadMock();
       s.license = { isPro: true, licenseKey: licenseKey.trim(), activatedAt: nowIso() };
       return saveMock(s);
