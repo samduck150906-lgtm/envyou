@@ -23,6 +23,9 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 rfd = "0.14"
 
+[dev-dependencies]
+tempfile = "3"
+
 [features]
 # this feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

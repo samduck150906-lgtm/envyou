@@ -145,6 +145,24 @@ impl EnvYouLocalState {
         }
     }
 
+    /// Whether a write (insert-or-update) of `key` into `project_id` is allowed
+    /// under the current tier.
+    ///
+    /// Updating an **existing** key is always permitted; only a brand-new key
+    /// counts against the free-tier per-project cap. Returns `false` for an
+    /// unknown project (callers disambiguate not-found from cap-reached).
+    ///
+    /// This is the single source of truth shared by both write entry points —
+    /// the GUI `upsert_variable` command and the MCP `write_env_variable` tool —
+    /// so their free-tier policy can never drift apart.
+    pub fn can_write_variable(&self, project_id: &str, key: &str) -> bool {
+        let key_exists = self
+            .project(project_id)
+            .map(|p| p.variables.iter().any(|v| v.key == key))
+            .unwrap_or(false);
+        key_exists || self.can_add_variable(project_id)
+    }
+
     pub fn project(&self, project_id: &str) -> Option<&ProjectItem> {
         self.projects.iter().find(|p| p.id == project_id)
     }
@@ -199,6 +217,65 @@ mod tests {
         assert!(!s.can_add_variable(&id));
         s.license.is_pro = true;
         assert!(s.can_add_variable(&id));
+    }
+
+    /// A project at the free-tier variable cap must still allow *updating* an
+    /// existing key — only brand-new keys are capped. This is the regression
+    /// guard for the MCP write path that previously blocked all writes once the
+    /// cap was hit.
+    #[test]
+    fn free_tier_allows_update_but_not_new_var_at_cap() {
+        let mut s = EnvYouLocalState::default();
+        let mut p = ProjectItem::new("p", "#008080", "now");
+        let id = p.id.clone();
+        for i in 0..FREE_MAX_VARS_PER_PROJECT {
+            p.variables.push(EnvVariable {
+                key: format!("K{i}"),
+                value: "v".into(),
+                comment: None,
+                is_masked: false,
+            });
+        }
+        s.projects.push(p);
+
+        assert!(
+            s.can_write_variable(&id, "K0"),
+            "updating an existing key must be allowed even at the free-tier cap"
+        );
+        assert!(
+            !s.can_write_variable(&id, "BRAND_NEW"),
+            "adding a new key beyond the free-tier cap must be denied"
+        );
+    }
+
+    #[test]
+    fn can_write_variable_is_false_for_unknown_project() {
+        let s = EnvYouLocalState::default();
+        assert!(
+            !s.can_write_variable("no-such-project", "K"),
+            "an unknown project must not be writable"
+        );
+    }
+
+    #[test]
+    fn pro_tier_allows_new_var_beyond_cap() {
+        let mut s = EnvYouLocalState::default();
+        let mut p = ProjectItem::new("p", "#008080", "now");
+        let id = p.id.clone();
+        for i in 0..FREE_MAX_VARS_PER_PROJECT {
+            p.variables.push(EnvVariable {
+                key: format!("K{i}"),
+                value: "v".into(),
+                comment: None,
+                is_masked: false,
+            });
+        }
+        s.projects.push(p);
+        s.license.is_pro = true;
+        assert!(
+            s.can_write_variable(&id, "BRAND_NEW"),
+            "Pro tier must allow new keys beyond the free cap"
+        );
     }
 
     #[test]

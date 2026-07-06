@@ -87,12 +87,10 @@ pub fn upsert_variable(
     is_masked: bool,
 ) -> CmdResult<EnvYouLocalState> {
     let mut s = load(&state)?;
-    let exists = s
-        .project(&project_id)
-        .map(|p| p.variables.iter().any(|v| v.key == key))
-        .unwrap_or(false);
-    // Only enforce the cap when adding a brand-new key.
-    if !exists && !s.can_add_variable(&project_id) {
+    // Only enforce the cap when adding a brand-new key; existing keys may always
+    // be updated. Shares `can_write_variable` with the MCP path so both enforce
+    // an identical free-tier policy.
+    if !s.can_write_variable(&project_id, &key) {
         if s.project(&project_id).is_none() {
             return Err(format!("project not found: {project_id}"));
         }
