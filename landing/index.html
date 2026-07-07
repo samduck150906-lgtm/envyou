@@ -899,11 +899,19 @@ footer.foot{
   overlay.addEventListener("click",function(e){if(e.target===overlay)closeDlg();});
   document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDlg();});
 
-  // ---- Download buttons → latest GitHub Release assets ----
+  // ---- Download buttons → direct installer download (no release page) ----
+  // NOTE: the file names carry the version, so bump these when you cut a new release.
+  var DL_BASE = "https://github.com/samduck150906-lgtm/envyou/releases/latest/download/";
+  var DL_FILE = {
+    Windows: "envyou_0.1.0_x64_en-US.msi",
+    Linux:   "envyou_0.1.0_amd64.AppImage"
+  };
   $$(".dl").forEach(function(b){
-    b.setAttribute("href","https://github.com/samduck150906-lgtm/envyou/releases/latest");
-    b.setAttribute("target","_blank");
-    b.setAttribute("rel","noopener");
+    var os = b.getAttribute("data-os");
+    if (DL_FILE[os]) {
+      b.setAttribute("href", DL_BASE + DL_FILE[os]);
+      b.setAttribute("rel","noopener");
+    }
   });
   // macOS build is not published yet.
   var dlMac = $("#dl-mac");
@@ -932,7 +940,7 @@ footer.foot{
     ko: {
       nav_features:"기능", nav_compare:"비교", nav_pricing:"가격", nav_faq:"자주 묻는 질문",
       gnb_dl:"다운로드", cta_dl:"⬇ 무료 다운로드", cta_pro:"Pro 보기 — $59 평생",
-      hero_h1:'컨텍스트 전환은<br>이제 그만.<br><span class="hl">로컬 우선</span> 환경변수 매니저.',
+      hero_h1:'컨텍스트 전환은<br>이제 그만.<br><span style="white-space:nowrap"><span class="hl">로컬 우선</span> 환경변수 매니저.</span>',
       hero_lead:'에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.',
       sec_why:"왜 envyou 인가", sec_pricing:"가격 — 구독은 없습니다", sec_download:"다운로드",
       sec_faq:"자주 묻는 질문", pro_buy:"★ 평생 소장 — $59"
