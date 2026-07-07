@@ -744,7 +744,7 @@ footer.foot{
       <p class="sec-sub">설치 1분. 지금 받아서 첫 프로젝트를 띄워보세요.</p>
       <div class="cta-row">
         <a href="#" class="btn primary big dl" data-os="Windows">⊞ Download for Windows <small style="font-weight:normal">(.msi)</small></a>
-        <a href="#" class="btn big dl" data-os="macOS">⌘ Download for macOS <small style="font-weight:normal">(.dmg)</small></a>
+        <a href="#" class="btn big" id="dl-mac" aria-disabled="true" style="opacity:.55">⌘ macOS <small style="font-weight:normal">(coming soon)</small></a>
         <a href="#" class="btn big dl" data-os="Linux">🐧 Linux <small style="font-weight:normal">(AppImage)</small></a>
       </div>
       <p class="sec-sub" style="margin-top:14px;margin-bottom:0">⚠ 정식 빌드 준비 중입니다 — 버튼을 누르면 릴리스 알림 안내가 표시됩니다.</p>
@@ -905,6 +905,9 @@ footer.foot{
     b.setAttribute("target","_blank");
     b.setAttribute("rel","noopener");
   });
+  // macOS build is not published yet.
+  var dlMac = $("#dl-mac");
+  if (dlMac) dlMac.addEventListener("click", function(e){ e.preventDefault(); say("macOS build is coming soon."); });
 
   // GNB download routes to the section; if release exists later, swap href.
   $("#gnbDownload").addEventListener("click",function(){say("Jumping to downloads…");});

@@ -21,21 +21,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest # universal (Apple Silicon + Intel)
-            args: "--target universal-apple-darwin"
           - platform: ubuntu-22.04
             args: ""
           - platform: windows-latest
             args: "--config sign.win.json"
+          # macOS is intentionally not built yet — "coming soon". Signing it
+          # requires the Apple Developer Program; add a macos-latest entry with
+          # --target universal-apple-darwin + APPLE_* secrets when ready.
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Add macOS universal targets
-        if: matrix.platform == 'macos-latest'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -75,15 +72,6 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          # ---- macOS signing + notarization (optional) ----
-          # Leave these secrets unset to produce an UNSIGNED macOS build.
-          # Set them (Apple Developer Program) to auto-sign + notarize:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: "envyou ${{ github.event.inputs.version || github.ref_name }}"
