@@ -16,22 +16,22 @@
 <meta property="og:site_name" content="envyou" />
 <meta property="og:url" content="https://envyou.dev/" />
 <meta property="og:title" content="envyou — Local-First Environment Variable Manager" />
-<meta property="og:description" content="A local-first, AES-256-GCM encrypted, Claude Desktop MCP-native environment variable manager for developers. Manage .env secrets locally with zero cloud. One-time $9.99, no subscription." />
+<meta property="og:description" content="A local-first, AES-256-GCM encrypted, Claude Desktop MCP-native environment variable manager for developers. Manage .env secrets locally with zero cloud. From $29/yr, or a one-time $59 lifetime license." />
 <meta property="og:image" content="https://envyou.dev/og.png" />
 <meta property="og:image:secure_url" content="https://envyou.dev/og.png" />
 <meta property="og:image:type" content="image/png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $9.99 one-time" />
+<meta property="og:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $59 lifetime" />
 <meta property="og:locale" content="ko_KR" />
 <meta property="og:locale:alternate" content="en_US" />
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="envyou — Local-First Environment Variable Manager" />
-<meta name="twitter:description" content="Local-first, AES-256-GCM encrypted, Claude Desktop MCP-native environment variable manager for developers. Manage .env secrets locally with zero cloud. One-time $9.99, no subscription." />
+<meta name="twitter:description" content="Local-first, AES-256-GCM encrypted, Claude Desktop MCP-native environment variable manager for developers. Manage .env secrets locally with zero cloud. From $29/yr, or a one-time $59 lifetime license." />
 <meta name="twitter:image" content="https://envyou.dev/og.png" />
-<meta name="twitter:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $9.99 one-time" />
+<meta name="twitter:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $59 lifetime" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='%23000080'/%3E%3Crect x='2' y='2' width='12' height='2' fill='%23ffffff'/%3E%3Crect x='2' y='2' width='2' height='12' fill='%23ffffff'/%3E%3Ctext x='4' y='13' font-family='monospace' font-size='11' fill='%23ffffff'%3Ee%3C/text%3E%3C/svg%3E" />
 
 <!-- Pixel fonts: Galmuri (KR+EN bitmap) + Google fallback -->
@@ -424,10 +424,17 @@ footer.foot{
         },
         {
           "@type": "Offer",
-          "name": "envyou Pro",
-          "price": "9.99",
+          "name": "envyou Pro (Annual)",
+          "price": "29.00",
           "priceCurrency": "USD",
-          "description": "One-time purchase (no subscription): unlimited projects and variables, custom themes, and Claude MCP integration."
+          "description": "Annual plan: unlimited projects and variables, custom themes, and Claude MCP integration."
+        },
+        {
+          "@type": "Offer",
+          "name": "envyou Pro (Lifetime)",
+          "price": "59.00",
+          "priceCurrency": "USD",
+          "description": "One-time lifetime license (no subscription): unlimited projects and variables, custom themes, and Claude MCP integration."
         }
       ]
     },
@@ -439,7 +446,7 @@ footer.foot{
           "name": "Is envyou free?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. envyou has a free tier that includes up to 3 projects, 10 variables per project, the global hotkey, always-on-top, and local AES-256-GCM encryption. Pro is an optional one-time purchase of $9.99 (no subscription) that unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration."
+            "text": "Yes. envyou has a free tier that includes up to 3 projects, 10 variables per project, the global hotkey, always-on-top, and local AES-256-GCM encryption. Pro unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration — $29/year, or a one-time $59 for a Lifetime license."
           }
         },
         {
@@ -463,7 +470,7 @@ footer.foot{
           "name": "How is envyou different from dotenv, 1Password, Doppler, or Infisical?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "dotenv is a library and a plaintext .env file format, not an encrypted manager with a UI. 1Password, Doppler, and Infisical are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. envyou is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is a one-time $9.99, and it integrates directly with Claude Desktop over MCP."
+            "text": "dotenv is a library and a plaintext .env file format, not an encrypted manager with a UI. 1Password, Doppler, and Infisical are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. envyou is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is $29/year or a one-time $59 lifetime, and it integrates directly with Claude Desktop over MCP."
           }
         },
         {
@@ -487,7 +494,7 @@ footer.foot{
           "name": "Does envyou require a subscription?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. The free tier is free forever, and Pro is a single one-time payment of $9.99 with no recurring charges."
+            "text": "The free tier is free forever. Pro comes two ways: a $29/year plan, or a one-time $59 Lifetime license with no recurring charges."
           }
         }
       ]
@@ -537,7 +544,7 @@ footer.foot{
         <p class="desc">무거운 클라우드 설정 도구는 그만. envyou는 수 MB짜리 초경량 데스크톱 앱으로, 모든 키를 <b>로컬에만 AES-256으로 암호화 저장</b>합니다. 그리고 Claude Desktop과 MCP로 연동돼 AI가 직접 환경변수를 읽고 쓸 수 있죠.</p>
         <div class="cta-row">
           <a href="#download" class="btn primary big">⬇ Download Free</a>
-          <a href="#pricing" class="btn big cta">Pro 보기 — $9.99</a>
+          <a href="#pricing" class="btn big cta">Pro 보기 — $59 평생</a>
         </div>
         <div class="trust">
           <span class="tag">Zero Cloud</span>
@@ -668,7 +675,7 @@ footer.foot{
             </tr>
             <tr>
               <th scope="row">Pricing model</th>
-              <td class="me">Free tier + $9.99 one-time</td>
+              <td class="me">Free + $29/yr or $59 lifetime</td>
               <td>Free / open source</td>
               <td>Subscription</td>
               <td>Free tier + subscription</td>
@@ -711,7 +718,7 @@ footer.foot{
           <div class="p-title"><span>★ Pro.exe</span><span class="p-close">✕</span></div>
           <div class="p-body">
             <h3>Pro</h3>
-            <p class="price">$9.99 <small>/ 평생 1회 결제</small></p>
+            <p class="price">$59 <small>/ 평생 1회 결제</small></p>
             <p class="note">구독 없음. 추가 비용 없음.</p>
             <ul>
               <li><span class="yes">✔</span> 프로젝트 <b>무제한</b> 생성</li>
@@ -721,7 +728,8 @@ footer.foot{
               <li><span class="yes">✔</span> 마스터 키 보안 스토리지</li>
               <li><span class="yes">✔</span> 오프라인 라이선스 인증</li>
             </ul>
-            <a href="#download" class="btn primary" id="buyPro">★ Pro 구매 — $9.99</a>
+            <a href="#" class="btn primary" id="buyPro">★ 평생 소장 — $59</a>
+            <a href="#" class="btn" id="buyAnnual" style="margin-top:8px">또는 연간 — $29 / 년</a>
           </div>
         </div>
 
@@ -748,7 +756,7 @@ footer.foot{
 
         <details open>
           <summary>Is envyou free?</summary>
-          <div class="a">Yes. envyou has a free tier that includes up to <b>3 projects</b>, <b>10 variables per project</b>, the global hotkey, always-on-top, and local AES-256-GCM encryption. <b>Pro</b> is an optional <b>one-time</b> purchase of <b>$9.99</b> (no subscription) that unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration.</div>
+          <div class="a">Yes. envyou has a free tier that includes up to <b>3 projects</b>, <b>10 variables per project</b>, the global hotkey, always-on-top, and local AES-256-GCM encryption. <b>Pro</b> unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration — <b>$29/year</b>, or a one-time <b>$59</b> for a <b>Lifetime</b> license.</div>
         </details>
 
         <details>
@@ -763,7 +771,7 @@ footer.foot{
 
         <details>
           <summary>How is envyou different from dotenv, 1Password, Doppler, or Infisical?</summary>
-          <div class="a"><code>dotenv</code> is a library and a plaintext <code>.env</code> file format, not an encrypted manager with a UI. <b>1Password</b>, <b>Doppler</b>, and <b>Infisical</b> are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. <b>envyou</b> is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is a one-time $9.99, and it integrates directly with Claude Desktop over MCP. See the <a href="#compare">comparison table</a> for details.</div>
+          <div class="a"><code>dotenv</code> is a library and a plaintext <code>.env</code> file format, not an encrypted manager with a UI. <b>1Password</b>, <b>Doppler</b>, and <b>Infisical</b> are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. <b>envyou</b> is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is $29/year or a one-time $59 lifetime, and it integrates directly with Claude Desktop over MCP. See the <a href="#compare">comparison table</a> for details.</div>
         </details>
 
         <details>
@@ -778,7 +786,7 @@ footer.foot{
 
         <details>
           <summary>Does envyou require a subscription?</summary>
-          <div class="a">No. The free tier is free forever, and Pro is a single <b>one-time</b> payment of <b>$9.99</b> with no recurring charges.</div>
+          <div class="a">The free tier is free forever. Pro comes two ways: a <b>$29/year</b> plan, or a one-time <b>$59 Lifetime</b> license with no recurring charges.</div>
         </details>
 
       </div>
@@ -803,7 +811,7 @@ footer.foot{
       <div class="biz">
         <b>ETERNALSIX</b> · 대표 Areum Seong<br>
         사업자등록번호 303-28-65658<br>
-        경기도 수원시 영통구 삼성로 186-1 4층<br>
+        경기도 화성시 동탄첨단산업1로58 307호<br>
         문의: <a href="mailto:ceo@eternalsix.com">ceo@eternalsix.com</a>
       </div>
     </div>
@@ -844,8 +852,8 @@ footer.foot{
 
   // ---- Paddle checkout config ----
   var PADDLE_TOKEN   = "live_6914babf47b12082b0f875b312e";
-  var PRICE_LIFETIME = "pri_01kwxn90wjx0hgk0c8mthxhs61";
-  var PRICE_ANNUAL   = "pri_01kwxn8b9q229nmga202k1pc60";
+  var PRICE_LIFETIME = "pri_01kwxn8b9q229nmga202k1pc60"; // $59 one-time
+  var PRICE_ANNUAL   = "pri_01kwxn90wjx0hgk0c8mthxhs61"; // $29 / year
   if (window.Paddle) { Paddle.Initialize({ token: PADDLE_TOKEN }); }
   function openCheckout(priceId){
     if (!window.Paddle) { location.href = "mailto:ceo@eternalsix.com?subject=envyou%20Pro"; return; }
@@ -905,11 +913,16 @@ footer.foot{
   // GNB download routes to the section; if release exists later, swap href.
   $("#gnbDownload").addEventListener("click",function(){say("Jumping to downloads…");});
 
-  // ---- Pro buy → Paddle checkout (Lifetime) ----
+  // ---- Pro buy → Paddle checkout ----
   var buyPro = $("#buyPro");
   if (buyPro) buyPro.addEventListener("click",function(e){
     e.preventDefault();
     openCheckout(PRICE_LIFETIME);
+  });
+  var buyAnnual = $("#buyAnnual");
+  if (buyAnnual) buyAnnual.addEventListener("click",function(e){
+    e.preventDefault();
+    openCheckout(PRICE_ANNUAL);
   });
 })();
 </script>
