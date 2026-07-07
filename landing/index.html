@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>envyou — Local-First Env Manager for Developers</title>
-<meta name="description" content="envyou는 Tauri 기반 초경량 로컬 환경변수 관리 데스크톱 앱입니다. 컨텍스트 스위칭을 멈추고, 클라우드 없이 로컬에만 암호화 저장하고, Claude Desktop과 MCP로 연동하세요." />
+<title>envyou — Local-First Environment Variable Manager for Developers | .env + Claude MCP</title>
+<meta name="description" content="envyou is a local-first, encrypted (AES-256-GCM) environment variable manager for developers. Manage your .env secrets and API keys locally with zero cloud, plus native Claude Desktop MCP integration that asks for your approval before any AI reads or writes a secret." />
+<meta name="keywords" content="environment variable manager, local env manager, .env manager, MCP environment variables, Claude Desktop MCP secrets, local-first developer tools, encrypted env storage, Tauri developer tool, desktop secrets manager" />
+<meta name="application-name" content="envyou" />
+<meta name="author" content="ETERNALSIX" />
 <link rel="canonical" href="https://envyou.dev/" />
 <meta name="theme-color" content="#000080" />
 
@@ -12,8 +15,8 @@
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="envyou" />
 <meta property="og:url" content="https://envyou.dev/" />
-<meta property="og:title" content="envyou — Stop Context Switching" />
-<meta property="og:description" content="Local-First, AES-256 encrypted, Claude-MCP native env manager. One-time $9.99. No subscription." />
+<meta property="og:title" content="envyou — Local-First Environment Variable Manager" />
+<meta property="og:description" content="A local-first, AES-256-GCM encrypted, Claude Desktop MCP-native environment variable manager for developers. Manage .env secrets locally with zero cloud. One-time $9.99, no subscription." />
 <meta property="og:image" content="https://envyou.dev/og.png" />
 <meta property="og:image:secure_url" content="https://envyou.dev/og.png" />
 <meta property="og:image:type" content="image/png" />
@@ -21,12 +24,14 @@
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $9.99 one-time" />
 <meta property="og:locale" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="envyou — Stop Context Switching" />
-<meta name="twitter:description" content="Local-First, AES-256 encrypted, Claude-MCP native env manager. One-time $9.99. No subscription." />
+<meta name="twitter:title" content="envyou — Local-First Environment Variable Manager" />
+<meta name="twitter:description" content="Local-first, AES-256-GCM encrypted, Claude Desktop MCP-native environment variable manager for developers. Manage .env secrets locally with zero cloud. One-time $9.99, no subscription." />
 <meta name="twitter:image" content="https://envyou.dev/og.png" />
+<meta name="twitter:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $9.99 one-time" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='%23000080'/%3E%3Crect x='2' y='2' width='12' height='2' fill='%23ffffff'/%3E%3Crect x='2' y='2' width='2' height='12' fill='%23ffffff'/%3E%3Ctext x='4' y='13' font-family='monospace' font-size='11' fill='%23ffffff'%3Ee%3C/text%3E%3C/svg%3E" />
 
 <!-- Pixel fonts: Galmuri (KR+EN bitmap) + Google fallback -->
@@ -185,6 +190,11 @@ a{color:var(--navy)}
   font-size:46px;line-height:1.15;letter-spacing:1px;margin-bottom:14px;
 }
 .hero h1 .hl{background:var(--navy);color:var(--white);padding:0 6px;}
+.hero .def{font-size:13.5px;max-width:52ch;margin-bottom:14px;color:#101010;
+  background:var(--white);padding:10px 12px;
+  border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+  border-right:2px solid var(--white);border-bottom:2px solid var(--white)}
+.hero .def code{background:var(--gray-2)}
 .hero .lead{font-size:17px;max-width:48ch;margin-bottom:10px}
 .hero .desc{font-size:14px;max-width:50ch;margin-bottom:22px;color:#202020}
 .hero code{background:var(--white);border:1px solid var(--shadow);padding:0 5px}
@@ -279,6 +289,35 @@ section.panel.alt{background:var(--gray-2)}
 .ribbon{position:absolute;top:30px;right:-2px;background:var(--red);color:#fff;
   font-size:11px;padding:3px 12px;font-weight:bold;z-index:2}
 
+/* ===== Comparison table ===== */
+.cmp-wrap{overflow-x:auto;border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+  border-right:2px solid var(--white);border-bottom:2px solid var(--white);background:var(--white)}
+table.cmp{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+table.cmp th,table.cmp td{border:1px solid var(--shadow);padding:7px 10px;text-align:left;vertical-align:top}
+table.cmp thead th{background:var(--navy);color:var(--white);font-weight:bold}
+table.cmp tbody th{background:var(--gray-2);font-weight:bold;white-space:nowrap}
+table.cmp td:first-child{background:var(--gray-2);font-weight:bold;white-space:nowrap}
+table.cmp .me{background:#eef3ff}
+table.cmp .yes{color:var(--green);font-weight:bold}
+table.cmp .no{color:var(--red);font-weight:bold}
+.cmp-note{font-size:12px;color:#303030;margin-top:12px;max-width:70ch}
+
+/* ===== FAQ ===== */
+.faq{max-width:820px}
+.faq details{margin-bottom:10px;background:var(--gray-2);
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow)}
+.faq summary{cursor:pointer;padding:10px 14px;font-weight:bold;font-size:15px;list-style:none;
+  display:flex;justify-content:space-between;gap:10px;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"▸";color:var(--navy)}
+.faq details[open] summary::after{content:"▾"}
+.faq details[open] summary{background:var(--navy);color:var(--white)}
+.faq details[open] summary::after{color:var(--white)}
+.faq .a{padding:12px 14px;font-size:13.5px;color:#101010;background:var(--white);
+  border-top:1px solid var(--shadow)}
+.faq .a code{background:var(--gray-2);border:1px solid var(--shadow);padding:0 4px}
+
 /* ===== Footer ===== */
 footer.foot{
   background:var(--gray);border-top:2px solid var(--white);
@@ -338,6 +377,124 @@ footer.foot{
   footer.foot{padding:18px}
 }
 </style>
+
+<!-- ===================================================================
+     Structured data (JSON-LD) — SoftwareApplication + FAQPage
+     Inline, no external requests. Kept factual and MVP-honest.
+     =================================================================== -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "envyou",
+      "alternateName": "envyou — Local-First Environment Variable Manager",
+      "url": "https://envyou.dev/",
+      "image": "https://envyou.dev/og.png",
+      "description": "envyou is a local-first, encrypted environment variable manager for developers. It stores your .env secrets and API keys only on your machine using AES-256-GCM, never in the cloud, and connects to Claude Desktop over the Model Context Protocol (MCP) so AI can read and write environment variables only after you approve each request.",
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Environment Variable Manager",
+      "operatingSystem": "Windows, macOS, Linux",
+      "softwareRequirements": "Windows 10+, macOS 11+, or a modern Linux desktop",
+      "featureList": [
+        "Local-only, zero-cloud storage of .env secrets",
+        "AES-256-GCM encrypted local state file",
+        "Native Claude Desktop MCP integration",
+        "Human approval dialog before any AI reads or writes a secret",
+        "Lightweight Tauri (Rust) desktop app with global hotkey and always-on-top",
+        "Freemium: free tier with an optional one-time Pro upgrade"
+      ],
+      "author": {
+        "@type": "Organization",
+        "name": "ETERNALSIX",
+        "email": "ceo@eternalsix.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "ETERNALSIX"
+      },
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "envyou Free",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Free tier: up to 3 projects and 10 variables per project, global hotkey, always-on-top, and local AES-256-GCM encryption."
+        },
+        {
+          "@type": "Offer",
+          "name": "envyou Pro",
+          "price": "9.99",
+          "priceCurrency": "USD",
+          "description": "One-time purchase (no subscription): unlimited projects and variables, custom themes, and Claude MCP integration."
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is envyou free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. envyou has a free tier that includes up to 3 projects, 10 variables per project, the global hotkey, always-on-top, and local AES-256-GCM encryption. Pro is an optional one-time purchase of $9.99 (no subscription) that unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does envyou send my secrets to the cloud?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. envyou is local-first. All of your projects, variables, and settings are stored in a single AES-256-GCM encrypted file on your own machine. Nothing is ever sent off-device — there is no cloud sync, no account, and no server that receives your secrets."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does the Claude Desktop MCP integration work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "envyou can run as a Model Context Protocol (MCP) server. One click writes an envyou entry into your claude_desktop_config.json, and Claude Desktop then launches 'envyou --mcp', which speaks JSON-RPC 2.0 MCP over STDIO and exposes list_projects, read_env_variables, and write_env_variable. Every read or write triggers a native approval dialog on your machine — secrets are only released after you click Yes."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is envyou different from dotenv, 1Password, Doppler, or Infisical?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "dotenv is a library and a plaintext .env file format, not an encrypted manager with a UI. 1Password, Doppler, and Infisical are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. envyou is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is a one-time $9.99, and it integrates directly with Claude Desktop over MCP."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What encryption does envyou use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "envyou stores all state in a single file encrypted with AES-256-GCM. In the current build the encryption key is derived from your machine id, which binds the encrypted state to your device. This is an MVP key-derivation scheme; the storage format is designed so a future build can swap in a user master password with a stronger key-derivation function without changing the file format."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Which platforms does envyou support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "envyou is built on Tauri (Rust) and targets Windows, macOS, and Linux desktops. Because it uses Tauri instead of Electron, the app is only a few megabytes and uses very little memory."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does envyou require a subscription?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. The free tier is free forever, and Pro is a single one-time payment of $9.99 with no recurring charges."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <div class="window" id="top">
@@ -358,7 +515,9 @@ footer.foot{
     <button class="btn menu-toggle" id="menuToggle" aria-label="Menu" style="padding:6px 12px">≡</button>
     <nav id="nav">
       <a href="#features"><u>F</u>eatures</a>
+      <a href="#compare"><u>C</u>ompare</a>
       <a href="#pricing"><u>P</u>ricing</a>
+      <a href="#faq">FA<u>Q</u></a>
       <a href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub</a>
     </nav>
     <span class="spacer"></span>
@@ -372,7 +531,8 @@ footer.foot{
     <section class="hero">
       <div class="hero-text">
         <span class="eyebrow">▶ TAURI · RUST · LOCAL-ONLY</span>
-        <h1>Stop Context<br>Switching.<br><span class="hl">Local-First</span> Env Manager.</h1>
+        <h1>Stop Context<br>Switching.<br><span class="hl">Local-First</span> Environment Variable Manager.</h1>
+        <p class="def"><b>envyou</b> is a local-first, encrypted environment variable manager for developers that stores your <code>.env</code> secrets and API keys only on your machine (AES-256-GCM), never in the cloud — and connects to Claude Desktop over MCP so AI can read and write environment variables only after you approve each request.</p>
         <p class="lead">에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.</p>
         <p class="desc">무거운 클라우드 설정 도구는 그만. envyou는 수 MB짜리 초경량 데스크톱 앱으로, 모든 키를 <b>로컬에만 AES-256으로 암호화 저장</b>합니다. 그리고 Claude Desktop과 MCP로 연동돼 AI가 직접 환경변수를 읽고 쓸 수 있죠.</p>
         <div class="cta-row">
@@ -441,9 +601,88 @@ footer.foot{
       </div>
     </section>
 
+    <!-- Comparison -->
+    <section class="panel" id="compare">
+      <div class="sec-title"><span class="chip">02</span><h2>envyou vs dotenv, 1Password, Doppler &amp; Infisical</h2></div>
+      <p class="sec-sub">Different tools for different jobs. Cloud secrets platforms are great for teams; envyou is built for a single developer who wants secrets to stay encrypted on their own machine, with a one-time price and native Claude Desktop MCP support.</p>
+      <div class="cmp-wrap">
+        <table class="cmp">
+          <thead>
+            <tr>
+              <th scope="col">Capability</th>
+              <th scope="col" class="me">envyou</th>
+              <th scope="col">dotenv</th>
+              <th scope="col">1Password</th>
+              <th scope="col">Doppler</th>
+              <th scope="col">Infisical</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">What it is</th>
+              <td class="me">Local desktop env manager</td>
+              <td>Library + .env file format</td>
+              <td>Password / secrets manager</td>
+              <td>Cloud secrets platform</td>
+              <td>Open-source secrets platform</td>
+            </tr>
+            <tr>
+              <th scope="row">Where secrets live</th>
+              <td class="me">Only on your machine</td>
+              <td>Plaintext .env file</td>
+              <td>Vendor cloud (E2E encrypted)</td>
+              <td>Vendor cloud</td>
+              <td>Cloud or self-hosted</td>
+            </tr>
+            <tr>
+              <th scope="row">Encrypted at rest</th>
+              <td class="me"><span class="yes">Yes</span> — AES-256-GCM</td>
+              <td><span class="no">No</span> (plaintext)</td>
+              <td><span class="yes">Yes</span></td>
+              <td><span class="yes">Yes</span></td>
+              <td><span class="yes">Yes</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Cloud sync required</th>
+              <td class="me"><span class="no">No</span></td>
+              <td><span class="no">No</span></td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Yes (or self-host)</td>
+            </tr>
+            <tr>
+              <th scope="row">Team collaboration</th>
+              <td class="me">Single developer focus</td>
+              <td>Via your own repo/tooling</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <th scope="row">Claude Desktop MCP</th>
+              <td class="me"><span class="yes">Native</span></td>
+              <td><span class="no">No</span></td>
+              <td><span class="no">No</span></td>
+              <td><span class="no">No</span></td>
+              <td><span class="no">No</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Pricing model</th>
+              <td class="me">Free tier + $9.99 one-time</td>
+              <td>Free / open source</td>
+              <td>Subscription</td>
+              <td>Free tier + subscription</td>
+              <td>Open source + paid tiers</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">Comparison reflects the typical, publicly documented positioning of each tool as a category, not a feature-by-feature benchmark; capabilities and pricing of third-party products change over time. dotenv, 1Password, Doppler, and Infisical are trademarks of their respective owners.</p>
+    </section>
+
     <!-- Pricing -->
     <section class="panel" id="pricing">
-      <div class="sec-title"><span class="chip">02</span><h2>가격 — 구독은 없습니다</h2></div>
+      <div class="sec-title"><span class="chip">03</span><h2>가격 — 구독은 없습니다</h2></div>
       <p class="sec-sub">한 번 사면 평생 내 것. Paddle을 통한 단 1회성 결제로 모든 Pro 기능을 영구히 잠금 해제하세요.</p>
       <div class="pricing">
 
@@ -491,7 +730,7 @@ footer.foot{
 
     <!-- Download -->
     <section class="panel alt" id="download">
-      <div class="sec-title"><span class="chip">03</span><h2>다운로드</h2></div>
+      <div class="sec-title"><span class="chip">04</span><h2>다운로드</h2></div>
       <p class="sec-sub">설치 1분. 지금 받아서 첫 프로젝트를 띄워보세요.</p>
       <div class="cta-row">
         <a href="#" class="btn primary big dl" data-os="Windows">⊞ Download for Windows <small style="font-weight:normal">(.msi)</small></a>
@@ -499,6 +738,50 @@ footer.foot{
         <a href="#" class="btn big dl" data-os="Linux">🐧 Linux <small style="font-weight:normal">(AppImage)</small></a>
       </div>
       <p class="sec-sub" style="margin-top:14px;margin-bottom:0">⚠ 정식 빌드 준비 중입니다 — 버튼을 누르면 릴리스 알림 안내가 표시됩니다.</p>
+    </section>
+
+    <!-- FAQ -->
+    <section class="panel" id="faq">
+      <div class="sec-title"><span class="chip">05</span><h2>Frequently Asked Questions</h2></div>
+      <p class="sec-sub">Common questions from developers about how envyou stores secrets, what it costs, and how the Claude Desktop MCP integration works.</p>
+      <div class="faq">
+
+        <details open>
+          <summary>Is envyou free?</summary>
+          <div class="a">Yes. envyou has a free tier that includes up to <b>3 projects</b>, <b>10 variables per project</b>, the global hotkey, always-on-top, and local AES-256-GCM encryption. <b>Pro</b> is an optional <b>one-time</b> purchase of <b>$9.99</b> (no subscription) that unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration.</div>
+        </details>
+
+        <details>
+          <summary>Does envyou send my secrets to the cloud?</summary>
+          <div class="a">No. envyou is <b>local-first</b>. All of your projects, variables, and settings live in a single AES-256-GCM encrypted file on your own machine. Nothing is ever sent off-device — there is no cloud sync, no account, and no server that receives your secrets.</div>
+        </details>
+
+        <details>
+          <summary>How does the Claude Desktop MCP integration work?</summary>
+          <div class="a">envyou can run as a <b>Model Context Protocol (MCP)</b> server. One click writes an <code>envyou</code> entry into your <code>claude_desktop_config.json</code>, and Claude Desktop then launches <code>envyou --mcp</code>, which speaks JSON-RPC 2.0 MCP over STDIO and exposes <code>list_projects</code>, <code>read_env_variables</code>, and <code>write_env_variable</code>. Every read or write triggers a <b>native approval dialog</b> on your machine — secrets are only released after you click <b>Yes</b>.</div>
+        </details>
+
+        <details>
+          <summary>How is envyou different from dotenv, 1Password, Doppler, or Infisical?</summary>
+          <div class="a"><code>dotenv</code> is a library and a plaintext <code>.env</code> file format, not an encrypted manager with a UI. <b>1Password</b>, <b>Doppler</b>, and <b>Infisical</b> are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. <b>envyou</b> is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is a one-time $9.99, and it integrates directly with Claude Desktop over MCP. See the <a href="#compare">comparison table</a> for details.</div>
+        </details>
+
+        <details>
+          <summary>What encryption does envyou use?</summary>
+          <div class="a">envyou stores all state in a single file encrypted with <b>AES-256-GCM</b>. In the current build the encryption key is derived from your machine id, which binds the encrypted state to your device. This is an MVP key-derivation scheme — not a claim of unbreakable or "bank-grade" security — and the storage format is designed so a future build can add a user master password with a stronger key-derivation function without changing the file format.</div>
+        </details>
+
+        <details>
+          <summary>Which platforms does envyou support?</summary>
+          <div class="a">envyou is built on <b>Tauri (Rust)</b> and targets <b>Windows, macOS, and Linux</b> desktops. Because it uses Tauri instead of Electron, the app is only a few megabytes and uses very little memory.</div>
+        </details>
+
+        <details>
+          <summary>Does envyou require a subscription?</summary>
+          <div class="a">No. The free tier is free forever, and Pro is a single <b>one-time</b> payment of <b>$9.99</b> with no recurring charges.</div>
+        </details>
+
+      </div>
     </section>
 
   </main>
@@ -510,7 +793,9 @@ footer.foot{
         <div class="brand"><span class="mark" style="width:22px;height:22px;background:#000080;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;border-top:2px solid #fff;border-left:2px solid #fff;border-right:2px solid #000;border-bottom:2px solid #000">e</span> envyou</div>
         <div class="links">
           <a href="#features">Features</a>
+          <a href="#compare">Compare</a>
           <a href="#pricing">Pricing</a>
+          <a href="#faq">FAQ</a>
           <a href="#download">Download</a>
           <a href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub ↗</a>
         </div>

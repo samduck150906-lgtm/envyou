@@ -27,8 +27,11 @@ pub fn config_path() -> Option<PathBuf> {
     }
     #[cfg(target_os = "windows")]
     {
-        std::env::var_os("APPDATA")
-            .map(|appdata| PathBuf::from(appdata).join("Claude").join("claude_desktop_config.json"))
+        std::env::var_os("APPDATA").map(|appdata| {
+            PathBuf::from(appdata)
+                .join("Claude")
+                .join("claude_desktop_config.json")
+        })
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -118,7 +121,10 @@ mod tests {
         // unrelated settings untouched
         assert_eq!(out["someOtherSetting"], true);
         // envyou added
-        assert_eq!(out["mcpServers"]["envyou"]["command"], "/usr/local/bin/envyou");
+        assert_eq!(
+            out["mcpServers"]["envyou"]["command"],
+            "/usr/local/bin/envyou"
+        );
     }
 
     #[test]

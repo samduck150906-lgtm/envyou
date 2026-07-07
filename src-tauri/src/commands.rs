@@ -3,28 +3,114 @@
 
 use std::sync::Mutex;
 
-use envyou_core::core::license;
 use envyou_core::core::model::{EnvVariable, EnvYouLocalState, ProjectItem, Settings};
 use envyou_core::core::storage::{machine_id, Store};
+use envyou_core::core::{crypto, license, storage};
+use serde::Serialize;
 use tauri::State;
 
 use crate::util::now_iso8601;
 
 /// Tauri-managed application state.
+///
+/// The store is `None` when the vault is **locked** — i.e. the on-disk file is
+/// password-protected and the correct master password has not been entered this
+/// session. All data commands refuse to run until it is unlocked.
 pub struct AppState {
-    pub store: Mutex<Store>,
+    pub store: Mutex<Option<Store>>,
 }
 
 type CmdResult<T> = Result<T, String>;
 
 fn load(state: &State<AppState>) -> CmdResult<EnvYouLocalState> {
-    let store = state.store.lock().map_err(|_| "state lock poisoned")?;
+    let guard = state.store.lock().map_err(|_| "state lock poisoned")?;
+    let store = guard.as_ref().ok_or_else(vault_locked_err)?;
     store.load().map_err(|e| e.to_string())
 }
 
 fn persist(state: &State<AppState>, s: &EnvYouLocalState) -> CmdResult<()> {
-    let store = state.store.lock().map_err(|_| "state lock poisoned")?;
+    let guard = state.store.lock().map_err(|_| "state lock poisoned")?;
+    let store = guard.as_ref().ok_or_else(vault_locked_err)?;
     store.save(s).map_err(|e| e.to_string())
+}
+
+fn vault_locked_err() -> String {
+    "vault is locked; unlock it with your master password".to_string()
+}
+
+/// Absolute path of the encrypted state file at the default location.
+fn state_file_path() -> CmdResult<std::path::PathBuf> {
+    Ok(storage::default_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(storage::STATE_FILE))
+}
+
+/// Snapshot of the vault's lock state, for the frontend to decide whether to
+/// show an unlock screen on launch.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultStatus {
+    /// Whether an encrypted state file exists on disk yet.
+    pub exists: bool,
+    /// Whether that file is protected by a master password (Argon2id / v2).
+    pub password_protected: bool,
+    /// Whether the store is currently unlocked and usable this session.
+    pub unlocked: bool,
+}
+
+#[tauri::command]
+pub fn vault_status(state: State<AppState>) -> CmdResult<VaultStatus> {
+    let path = state_file_path()?;
+    let exists = path.exists();
+    let password_protected = if exists {
+        let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        crypto::is_password_protected(&raw)
+    } else {
+        false
+    };
+    let unlocked = state
+        .store
+        .lock()
+        .map_err(|_| "state lock poisoned")?
+        .is_some();
+    Ok(VaultStatus {
+        exists,
+        password_protected,
+        unlocked,
+    })
+}
+
+/// Unlock a password-protected vault for this session. Returns the decrypted
+/// state on success; an incorrect password yields an error and leaves the vault
+/// locked.
+#[tauri::command]
+pub fn unlock_vault(state: State<AppState>, password: String) -> CmdResult<EnvYouLocalState> {
+    let store = Store::open_default_with_password(password).map_err(|e| e.to_string())?;
+    let data = store
+        .load()
+        .map_err(|_| "incorrect master password".to_string())?;
+    *state.store.lock().map_err(|_| "state lock poisoned")? = Some(store);
+    Ok(data)
+}
+
+/// Set (or change) the master password: re-seal the currently-unlocked vault
+/// under Argon2id with the given password. Requires the vault to be unlocked.
+#[tauri::command]
+pub fn set_master_password(
+    state: State<AppState>,
+    password: String,
+) -> CmdResult<EnvYouLocalState> {
+    if password.trim().chars().count() < 8 {
+        return Err("master password must be at least 8 characters".into());
+    }
+    let mut guard = state.store.lock().map_err(|_| "state lock poisoned")?;
+    let current = guard.take().ok_or_else(vault_locked_err)?;
+    let migrated = current
+        .migrate_to_password(password)
+        .map_err(|e| e.to_string())?;
+    let data = migrated.load().map_err(|e| e.to_string())?;
+    *guard = Some(migrated);
+    Ok(data)
 }
 
 #[tauri::command]
@@ -87,12 +173,10 @@ pub fn upsert_variable(
     is_masked: bool,
 ) -> CmdResult<EnvYouLocalState> {
     let mut s = load(&state)?;
-    let exists = s
-        .project(&project_id)
-        .map(|p| p.variables.iter().any(|v| v.key == key))
-        .unwrap_or(false);
-    // Only enforce the cap when adding a brand-new key.
-    if !exists && !s.can_add_variable(&project_id) {
+    // Only enforce the cap when adding a brand-new key; existing keys may always
+    // be updated. Shares `can_write_variable` with the MCP path so both enforce
+    // an identical free-tier policy.
+    if !s.can_write_variable(&project_id, &key) {
         if s.project(&project_id).is_none() {
             return Err(format!("project not found: {project_id}"));
         }
@@ -142,7 +226,10 @@ pub fn save_settings(state: State<AppState>, settings: Settings) -> CmdResult<En
 }
 
 #[tauri::command]
-pub fn activate_license(state: State<AppState>, license_key: String) -> CmdResult<EnvYouLocalState> {
+pub fn activate_license(
+    state: State<AppState>,
+    license_key: String,
+) -> CmdResult<EnvYouLocalState> {
     // Validate + machine-bind the key offline (spec §6.3).
     license::activate(&license_key, &machine_id()).map_err(|e| e.to_string())?;
     let mut s = load(&state)?;
@@ -169,8 +256,8 @@ pub fn link_claude_desktop() -> CmdResult<String> {
         .to_string();
 
     let existing = std::fs::read_to_string(&path).ok();
-    let merged = claude_config::merge_config_str(existing.as_deref(), &exe)
-        .map_err(|e| e.to_string())?;
+    let merged =
+        claude_config::merge_config_str(existing.as_deref(), &exe).map_err(|e| e.to_string())?;
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;

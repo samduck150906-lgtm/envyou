@@ -8,4 +8,6 @@
 
 mod server;
 
-pub use server::{serve_stdio, ApprovalDecision, ApprovalGate, ApprovalRequest, EnvStore, McpServer};
+pub use server::{
+    serve_stdio, ApprovalDecision, ApprovalGate, ApprovalRequest, EnvStore, McpServer,
+};

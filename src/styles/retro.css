@@ -170,6 +170,12 @@ body {
   font-weight: bold;
   letter-spacing: 1px;
 }
+.head-count {
+  font-weight: normal;
+  letter-spacing: 0;
+  color: var(--dark-gray);
+  margin-left: 4px;
+}
 .mini-btn {
   width: 18px;
   height: 16px;
@@ -289,6 +295,25 @@ select {
 input:focus,
 textarea:focus {
   outline: 1px dotted var(--black);
+}
+/* Visible keyboard focus for all interactive controls (buttons, project rows,
+   copy-to-clipboard values). Mouse clicks don't trigger :focus-visible, so the
+   retro look is untouched for pointer users. */
+.btn:focus-visible,
+.mini-btn:focus-visible,
+.title-btn:focus-visible,
+.link-btn:focus-visible,
+.project-list li:focus-visible,
+.var-val:focus-visible {
+  outline: 2px dotted var(--black);
+  outline-offset: 1px;
+}
+/* Allow selecting text inside dialogs (license keys, paths) despite the
+   chrome-wide user-select: none. */
+.modal-content,
+.modal-content input,
+.modal-content textarea {
+  user-select: text;
 }
 button.btn {
   font-family: inherit;

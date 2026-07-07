@@ -13,9 +13,9 @@
       <div class="titlebar" data-tauri-drag-region>
         <span class="title" data-tauri-drag-region>■ envyou</span>
         <div class="title-buttons">
-          <button id="pin-btn" class="title-btn" title="Always on top">📌</button>
-          <button id="settings-btn" class="title-btn" title="Settings">≡</button>
-          <button id="min-btn" class="title-btn" title="Minimize to tray">_</button>
+          <button id="pin-btn" class="title-btn" title="Always on top" aria-label="Toggle always on top" aria-pressed="true">📌</button>
+          <button id="settings-btn" class="title-btn" title="Settings" aria-label="Open settings">≡</button>
+          <button id="min-btn" class="title-btn" title="Minimize to tray" aria-label="Minimize to tray">_</button>
         </div>
       </div>
 
@@ -29,8 +29,8 @@
         <!-- Sidebar: projects -->
         <aside class="sidebar">
           <div class="panel-head">
-            <span>PROJECTS</span>
-            <button id="add-project-btn" class="mini-btn" title="New project">+</button>
+            <span>PROJECTS <span id="projects-count" class="head-count"></span></span>
+            <button id="add-project-btn" class="mini-btn" title="New project" aria-label="New project">+</button>
           </div>
           <ul id="project-list" class="project-list"></ul>
         </aside>
@@ -39,9 +39,10 @@
         <main class="main">
           <div class="panel-head">
             <span id="vars-title">VARIABLES</span>
+            <span id="vars-count" class="head-count"></span>
             <div>
-              <button id="mask-toggle-btn" class="mini-btn" title="Toggle masking">👁</button>
-              <button id="add-var-btn" class="mini-btn" title="New variable">+</button>
+              <button id="mask-toggle-btn" class="mini-btn" title="Toggle masking" aria-label="Toggle value masking">👁</button>
+              <button id="add-var-btn" class="mini-btn" title="New variable" aria-label="New variable">+</button>
             </div>
           </div>
           <div id="vars-container" class="vars-container">
@@ -52,8 +53,8 @@
 
       <!-- Status bar -->
       <div class="statusbar">
-        <span id="status-text">Ready</span>
-        <span class="grip" title="Resize">◢</span>
+        <span id="status-text" role="status" aria-live="polite">Ready</span>
+        <span class="grip" title="Resize" aria-hidden="true">◢</span>
       </div>
     </div>
 

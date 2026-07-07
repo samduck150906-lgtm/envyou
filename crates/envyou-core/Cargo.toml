@@ -20,6 +20,18 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 directories = "5"
+ed25519-dalek = "2"
+argon2 = "0.5"
+
+[features]
+# Enables license *minting* (signing). OFF by default so the shipped app can
+# only verify licenses, never mint them. Used by the offline `license_tool`
+# example. Never enable this in the desktop build.
+issuer = []
 
 [dev-dependencies]
 tempfile = "3"
+
+[[example]]
+name = "license_tool"
+required-features = ["issuer"]

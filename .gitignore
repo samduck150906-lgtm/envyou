@@ -21,3 +21,8 @@ Thumbs.db
 # envyou local state (never commit secrets)
 enc_state.json
 *.tmp
+
+# License signing keys — the private key must NEVER be committed
+*-signing.key
+*.signing.key
+envyou-signing.key

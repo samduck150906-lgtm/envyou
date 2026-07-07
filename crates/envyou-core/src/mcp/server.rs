@@ -56,14 +56,10 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
             Err(_) => return Some(error_response(Value::Null, -32700, "Parse error")),
         };
 
-        let id = req.get("id").cloned();
         let method = req.get("method").and_then(Value::as_str).unwrap_or("");
 
         // Notifications have no `id` and expect no response.
-        if id.is_none() {
-            return None;
-        }
-        let id = id.unwrap();
+        let id = req.get("id").cloned()?;
 
         let result = match method {
             "initialize" => Ok(self.initialize()),
@@ -97,7 +93,10 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
             .get("name")
             .and_then(Value::as_str)
             .ok_or((-32602, "Missing tool name".to_string()))?;
-        let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+        let args = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or_else(|| json!({}));
 
         match name {
             "list_projects" => Ok(self.call_list_projects()),
@@ -162,7 +161,11 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
 }
 
 /// Run the MCP server over the provided reader/writer (STDIO in production).
-pub fn serve_stdio<S, G, R, W>(server: &McpServer<S, G>, reader: R, mut writer: W) -> std::io::Result<()>
+pub fn serve_stdio<S, G, R, W>(
+    server: &McpServer<S, G>,
+    reader: R,
+    mut writer: W,
+) -> std::io::Result<()>
 where
     S: EnvStore,
     G: ApprovalGate,
@@ -279,7 +282,9 @@ mod tests {
             }
         }
         fn write_env_variable(&self, p: &str, k: &str, v: &str) -> Result<(), String> {
-            self.writes.borrow_mut().push((p.into(), k.into(), v.into()));
+            self.writes
+                .borrow_mut()
+                .push((p.into(), k.into(), v.into()));
             Ok(())
         }
     }
@@ -371,6 +376,24 @@ mod tests {
             r#"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"write_env_variable","arguments":{"projectId":"p1","key":"K","value":"V"}}}"#,
         );
         assert_eq!(r["result"]["isError"], true);
+    }
+
+    #[test]
+    fn write_denied_does_not_persist_anything() {
+        let s = server(ApprovalDecision::Denied);
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"write_env_variable","arguments":{"projectId":"p1","key":"AWS_SECRET_KEY","value":"leak-me"}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        // The store must not have been mutated when the user denied the write.
+        assert!(
+            s.store.writes.borrow().is_empty(),
+            "a denied write must not reach the store"
+        );
+        // And the denied secret value must never appear in the response.
+        let text = r["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(!text.contains("leak-me"));
     }
 
     #[test]
