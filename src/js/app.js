@@ -516,10 +516,10 @@
       if (ok) closeModal();
       else err.textContent = state.lastError;
     };
-    openModal("Upgrade to Pro — $9.99 one-time", [
+    openModal("Upgrade to Pro — $59 lifetime / $29 yr", [
       el("p", { class: "hint", text: "Unlimited projects & variables, MCP server, custom env colors." }),
       el("div", { class: "field" }, [el("label", { text: "License key" }), keyInput]),
-      el("p", { class: "hint", text: "Purchased online — key arrives by email. Offline activation." }),
+      el("p", { class: "hint", text: "Buy at envyou.dev — your license key arrives by email. Offline activation." }),
       err,
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
