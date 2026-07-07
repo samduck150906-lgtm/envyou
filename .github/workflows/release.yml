@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Tag to create + release (e.g. v0.1.0)"
+        description: "Tag to create + release (e.g. v0.1.1)"
         required: true
-        default: "v0.1.0"
+        default: "v0.1.1"
 
 permissions:
   contents: write # tauri-action needs this to create the release
