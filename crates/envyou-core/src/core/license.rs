@@ -50,7 +50,7 @@ pub const PRODUCT: &str = "envyou";
 /// with your real public key (see `README.md` → *License model*) before
 /// enabling paid activation. NEVER put the matching private key anywhere in this
 /// repo.
-pub const LICENSE_PUBLIC_KEY_B64: &str = "REPLACE_WITH_PRODUCTION_ED25519_PUBLIC_KEY_BASE64";
+pub const LICENSE_PUBLIC_KEY_B64: &str = "nsJ4J+OMAg5kjuvCVNcsMdld5i8A+2ZqPyKTq0sCV6Y=";
 
 /// The signed claims carried by a license token.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
