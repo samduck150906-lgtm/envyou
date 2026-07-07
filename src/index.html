@@ -22,14 +22,23 @@
       <!-- License banner -->
       <div id="tier-bar" class="tier-bar">
         <span id="tier-label">FREE</span>
-        <button id="upgrade-btn" class="link-btn">Upgrade to Pro »</button>
+        <button id="upgrade-btn" class="link-btn" data-i18n="upgrade">Upgrade to Pro »</button>
+        <select id="lang-select" aria-label="Language" style="margin-left:auto;font-family:inherit;font-size:10px;border:2px solid var(--dark-gray);background:var(--gray)">
+          <option value="en">EN</option>
+          <option value="ko">KO</option>
+          <option value="ja">JA</option>
+          <option value="zh">ZH</option>
+          <option value="th">TH</option>
+          <option value="vi">VI</option>
+          <option value="hi">HI</option>
+        </select>
       </div>
 
       <div class="body">
         <!-- Sidebar: projects -->
         <aside class="sidebar">
           <div class="panel-head">
-            <span>PROJECTS <span id="projects-count" class="head-count"></span></span>
+            <span><span data-i18n="projects">PROJECTS</span> <span id="projects-count" class="head-count"></span></span>
             <button id="add-project-btn" class="mini-btn" title="New project" aria-label="New project">+</button>
           </div>
           <ul id="project-list" class="project-list"></ul>

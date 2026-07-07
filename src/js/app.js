@@ -41,6 +41,71 @@
     return node;
   };
 
+  // ---- i18n (core UI) ----
+  const I18N = {
+    en: { free:"FREE", upgrade:"Upgrade to Pro »", projects:"PROJECTS", variables:"VARIABLES",
+      select_project:"Select or create a project.", no_projects:"No projects yet — click + to add one.",
+      no_vars:"No variables. Click + to add one.", upgrade_title:"Upgrade to Pro — $59 lifetime",
+      upgrade_feats:"Unlimited projects & variables, MCP server, custom env colors.",
+      upgrade_buy:"Buy at envyou.dev — your license key arrives by email. Offline activation.",
+      license_key:"License key", activate:"Activate", cancel:"Cancel" },
+    ko: { free:"무료", upgrade:"Pro로 업그레이드 »", projects:"프로젝트", variables:"변수",
+      select_project:"프로젝트를 선택하거나 만드세요.", no_projects:"아직 프로젝트가 없습니다 — +를 눌러 추가하세요.",
+      no_vars:"변수가 없습니다. +를 눌러 추가하세요.", upgrade_title:"Pro 업그레이드 — $59 평생",
+      upgrade_feats:"무제한 프로젝트·변수, MCP 서버, 커스텀 컬러.",
+      upgrade_buy:"envyou.dev에서 구매 — 라이선스 키는 이메일로. 오프라인 인증.",
+      license_key:"라이선스 키", activate:"활성화", cancel:"취소" },
+    ja: { free:"無料", upgrade:"Pro にアップグレード »", projects:"プロジェクト", variables:"変数",
+      select_project:"プロジェクトを選択または作成してください。", no_projects:"プロジェクトがありません — + で追加。",
+      no_vars:"変数がありません。+ で追加。", upgrade_title:"Pro にアップグレード — $59 買い切り",
+      upgrade_feats:"無制限のプロジェクト・変数、MCPサーバー、カスタムカラー。",
+      upgrade_buy:"envyou.dev で購入 — ライセンスキーはメールで届きます。オフライン認証。",
+      license_key:"ライセンスキー", activate:"有効化", cancel:"キャンセル" },
+    zh: { free:"免费", upgrade:"升级到 Pro »", projects:"项目", variables:"变量",
+      select_project:"请选择或创建一个项目。", no_projects:"还没有项目 — 点击 + 添加。",
+      no_vars:"没有变量。点击 + 添加。", upgrade_title:"升级到 Pro — $59 永久",
+      upgrade_feats:"无限项目和变量、MCP 服务器、自定义颜色。",
+      upgrade_buy:"在 envyou.dev 购买 — 许可证密钥通过邮件发送。离线激活。",
+      license_key:"许可证密钥", activate:"激活", cancel:"取消" },
+    th: { free:"ฟรี", upgrade:"อัปเกรดเป็น Pro »", projects:"โปรเจกต์", variables:"ตัวแปร",
+      select_project:"เลือกหรือสร้างโปรเจกต์", no_projects:"ยังไม่มีโปรเจกต์ — กด + เพื่อเพิ่ม",
+      no_vars:"ไม่มีตัวแปร กด + เพื่อเพิ่ม", upgrade_title:"อัปเกรดเป็น Pro — $59 ตลอดชีพ",
+      upgrade_feats:"โปรเจกต์และตัวแปรไม่จำกัด, เซิร์ฟเวอร์ MCP, สีที่กำหนดเอง",
+      upgrade_buy:"ซื้อที่ envyou.dev — คีย์ไลเซนส์ส่งทางอีเมล เปิดใช้งานออฟไลน์",
+      license_key:"คีย์ไลเซนส์", activate:"เปิดใช้งาน", cancel:"ยกเลิก" },
+    vi: { free:"MIỄN PHÍ", upgrade:"Nâng cấp Pro »", projects:"DỰ ÁN", variables:"BIẾN",
+      select_project:"Chọn hoặc tạo một dự án.", no_projects:"Chưa có dự án — nhấn + để thêm.",
+      no_vars:"Chưa có biến. Nhấn + để thêm.", upgrade_title:"Nâng cấp Pro — $59 trọn đời",
+      upgrade_feats:"Dự án & biến không giới hạn, máy chủ MCP, màu tùy chỉnh.",
+      upgrade_buy:"Mua tại envyou.dev — khóa giấy phép gửi qua email. Kích hoạt ngoại tuyến.",
+      license_key:"Khóa giấy phép", activate:"Kích hoạt", cancel:"Hủy" },
+    hi: { free:"फ़्री", upgrade:"Pro में अपग्रेड »", projects:"प्रोजेक्ट", variables:"वेरिएबल",
+      select_project:"कोई प्रोजेक्ट चुनें या बनाएँ।", no_projects:"अभी कोई प्रोजेक्ट नहीं — जोड़ने के लिए + दबाएँ।",
+      no_vars:"कोई वेरिएबल नहीं। जोड़ने के लिए + दबाएँ।", upgrade_title:"Pro में अपग्रेड — $59 आजीवन",
+      upgrade_feats:"असीमित प्रोजेक्ट और वेरिएबल, MCP सर्वर, कस्टम रंग।",
+      upgrade_buy:"envyou.dev पर खरीदें — लाइसेंस कुंजी ईमेल से आती है। ऑफ़लाइन सक्रियण।",
+      license_key:"लाइसेंस कुंजी", activate:"सक्रिय करें", cancel:"रद्द करें" }
+  };
+  let LANG = "en";
+  function t(k) {
+    const d = I18N[LANG] || I18N.en;
+    return d[k] != null ? d[k] : (I18N.en[k] != null ? I18N.en[k] : k);
+  }
+  function applyStaticI18n() {
+    document.querySelectorAll("[data-i18n]").forEach((n) => {
+      n.textContent = t(n.getAttribute("data-i18n"));
+    });
+  }
+  function setLang(l) {
+    LANG = I18N[l] ? l : "en";
+    try { localStorage.setItem("envyou_lang", LANG); } catch (e) {}
+    document.documentElement.setAttribute("lang", LANG);
+    const sel = $("#lang-select");
+    if (sel) sel.value = LANG;
+    applyStaticI18n();
+    if (state.data) render();
+  }
+
   function status(msg) {
     $("#status-text").textContent = msg;
   }
@@ -78,7 +143,7 @@
   function renderTier() {
     const pro = state.data.license.isPro;
     const label = $("#tier-label");
-    label.textContent = pro ? "PRO ✦" : "FREE";
+    label.textContent = pro ? "PRO ✦" : t("free");
     label.classList.toggle("pro", pro);
     $("#upgrade-btn").style.display = pro ? "none" : "inline";
   }
@@ -116,7 +181,7 @@
       list.appendChild(li);
     });
     if (!state.data.projects.length) {
-      list.appendChild(el("li", { class: "empty-hint", text: "No projects yet — click + to add one." }));
+      list.appendChild(el("li", { class: "empty-hint", text: t("no_projects") }));
     }
   }
 
@@ -124,14 +189,14 @@
     const p = selectedProject();
     const c = $("#vars-container");
     c.innerHTML = "";
-    $("#vars-title").textContent = p ? "VARIABLES — " + p.name : "VARIABLES";
+    $("#vars-title").textContent = p ? t("variables") + " — " + p.name : t("variables");
 
     if (!p) {
-      c.appendChild(el("p", { class: "empty-hint", text: "Select or create a project." }));
+      c.appendChild(el("p", { class: "empty-hint", text: t("select_project") }));
       return;
     }
     if (!p.variables.length) {
-      c.appendChild(el("p", { class: "empty-hint", text: "No variables. Click + to add one." }));
+      c.appendChild(el("p", { class: "empty-hint", text: t("no_vars") }));
       return;
     }
 
@@ -517,14 +582,14 @@
       if (ok) closeModal();
       else err.textContent = state.lastError;
     };
-    openModal("Upgrade to Pro — $59 lifetime", [
-      el("p", { class: "hint", text: "Unlimited projects & variables, MCP server, custom env colors." }),
-      el("div", { class: "field" }, [el("label", { text: "License key" }), keyInput]),
-      el("p", { class: "hint", text: "Buy at envyou.dev — your license key arrives by email. Offline activation." }),
+    openModal(t("upgrade_title"), [
+      el("p", { class: "hint", text: t("upgrade_feats") }),
+      el("div", { class: "field" }, [el("label", { text: t("license_key") }), keyInput]),
+      el("p", { class: "hint", text: t("upgrade_buy") }),
       err,
       el("div", { class: "modal-actions" }, [
-        el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
-        el("button", { class: "btn primary", text: "Activate", onclick: activate }),
+        el("button", { class: "btn", text: t("cancel"), onclick: closeModal }),
+        el("button", { class: "btn primary", text: t("activate"), onclick: activate }),
       ]),
     ]);
     keyInput.focus();
@@ -557,6 +622,13 @@
 
   // ---- Wire up --------------------------------------------------------------
   async function init() {
+    // Language selector (core UI i18n).
+    const langSel = $("#lang-select");
+    let savedLang = null;
+    try { savedLang = localStorage.getItem("envyou_lang"); } catch (e) {}
+    if (langSel) langSel.addEventListener("change", () => setLang(langSel.value));
+    setLang(savedLang || (navigator.language || "en").slice(0, 2).toLowerCase());
+
     $("#add-project-btn").addEventListener("click", () => projectModal(null));
     $("#add-var-btn").addEventListener("click", () => {
       const p = selectedProject();
