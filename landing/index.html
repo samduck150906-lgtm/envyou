@@ -72,6 +72,10 @@ body{
   font-family:"Galmuri9","DotGothic16","Courier New",monospace;
   font-size:15px;
   line-height:1.6;
+  /* Wrap CJK text at word/particle boundaries instead of mid-word, and break
+     long tokens (URLs, keys) rather than overflowing. */
+  word-break:keep-all;
+  overflow-wrap:anywhere;
   -webkit-font-smoothing:none;
   -moz-osx-font-smoothing:unset;
   text-rendering:optimizeSpeed;
@@ -265,6 +269,47 @@ section.panel.alt{background:var(--gray-2)}
 .feat p{font-size:13.5px;color:#202020}
 .feat .kbd{display:inline-block;margin-top:10px;font-size:11px;background:var(--white);
   border:1px solid var(--shadow);padding:1px 6px}
+
+/* ===== "See it in action" demos ===== */
+.demos{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.demo{padding:0;display:flex;flex-direction:column}
+.demo .win-head{background:var(--navy);color:#fff;display:flex;justify-content:space-between;
+  align-items:center;padding:3px 8px;font-size:12px;font-weight:bold}
+.demo .win-head .dots{display:flex;gap:3px}
+.demo .win-head .dots i{width:12px;height:11px;background:var(--gray);display:inline-block;
+  border-top:1px solid #fff;border-left:1px solid #fff;border-right:1px solid #000;border-bottom:1px solid #000}
+.demo .screen{background:var(--white);padding:10px;font-size:12px;line-height:1.55;flex:1;
+  border-left:2px solid var(--shadow);border-right:2px solid var(--shadow)}
+.demo .cap{padding:10px 12px;font-size:13px;background:var(--gray);border-top:2px solid var(--white)}
+.demo .cap b{color:var(--navy)}
+.demo .cap code{background:var(--gray-2);border:1px solid var(--shadow);padding:0 4px;font-size:12px}
+.d-row{display:flex;align-items:center;gap:6px;padding:2px 0;overflow:hidden}
+.d-badge{font-size:9px;font-weight:bold;padding:1px 4px;flex:none}
+.badge-new{background:#e2f0e2;color:var(--green);border:1px solid var(--green)}
+.badge-upd{background:#f7e9e9;color:var(--red);border:1px solid var(--red)}
+.badge-secret{background:var(--gray-2);color:#555;border:1px solid var(--shadow)}
+.d-key{font-weight:bold}
+.d-val{color:#555;margin-left:auto;white-space:nowrap}
+.d-plus{color:var(--green);font-weight:bold}
+.d-minus{color:var(--red);font-weight:bold}
+.d-input{background:var(--gray-2);border:2px solid var(--shadow);padding:5px 7px;margin-bottom:7px;color:#333;font-size:11px}
+.d-pal{padding:3px 6px}
+.d-pal.sel{background:var(--navy);color:#fff}
+.d-approve{border:2px solid var(--shadow);background:var(--gray);padding:8px;margin-top:7px}
+.d-approve .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
+.d-approve .mini-b{font-size:10px;padding:2px 10px;background:var(--gray);
+  border-top:2px solid #fff;border-left:2px solid #fff;border-right:2px solid #000;border-bottom:2px solid #000}
+.d-approve .mini-b.pri{background:var(--navy);color:#fff;border-top-color:#4060c0;border-left-color:#4060c0}
+
+/* ===== Download cards ===== */
+.dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:840px}
+.dl-card{padding:18px}
+.dl-card.pro{background:var(--gray-2)}
+.dl-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:16px;font-weight:bold;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--shadow)}
+.dl-card.pro .dl-card-head{color:var(--green)}
+.dl-note{font-size:12.5px;color:#202020;margin:0}
+@media (max-width:860px){ .demos,.dl-grid{grid-template-columns:1fr} }
 
 /* ===== Pricing ===== */
 .pricing{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px}
@@ -611,9 +656,92 @@ footer.foot{
       </div>
     </section>
 
+    <!-- See it in action -->
+    <section class="panel" id="demos">
+      <div class="sec-title"><span class="chip">02</span><h2>이래서 envyou가 필요합니다</h2></div>
+      <p class="sec-sub">매일 겪는 <code>.env</code> 피로 — 붙여넣기, 환경 비교, 검색, AI 연동 — 을 앱이 어떻게 없애는지 실제 화면으로 보여드립니다.</p>
+      <div class="demos" aria-hidden="true">
+
+        <!-- Smart Import -->
+        <div class="demo raised">
+          <div class="win-head"><span>■ Smart Import</span><span class="dots"><i></i><i></i></span></div>
+          <div class="screen">
+            <div class="d-input">export DATABASE_URL="postgres://…"<br>NEXT_PUBLIC_URL=https://app.io<br>const k = process.env.OPENAI_API_KEY</div>
+            <div class="d-row"><span class="d-badge badge-new">NEW</span><span class="d-key">DATABASE_URL</span><span class="d-badge badge-secret">secret</span><span class="d-val">••••</span></div>
+            <div class="d-row"><span class="d-badge badge-new">NEW</span><span class="d-key">NEXT_PUBLIC_URL</span><span class="d-val">https://app.io</span></div>
+            <div class="d-row"><span class="d-badge badge-upd">UPDATE</span><span class="d-key">OPENAI_API_KEY</span><span class="d-badge badge-secret">secret</span><span class="d-val">(empty)</span></div>
+          </div>
+          <div class="cap"><b>Smart Import</b> — <code>.env</code>·<code>export</code>·JSON·<code>process.env</code> 무엇이든 붙여넣기. 저장 전에 새 키·충돌·시크릿을 미리 확인.</div>
+        </div>
+
+        <!-- Diff -->
+        <div class="demo raised">
+          <div class="win-head"><span>■ Diff — staging ⇄ production</span><span class="dots"><i></i><i></i></span></div>
+          <div class="screen">
+            <div class="d-row"><span class="d-minus">−</span><span class="d-key">STRIPE_SECRET</span><span class="d-val">staging 에만</span></div>
+            <div class="d-row"><span class="d-plus">+</span><span class="d-key">SENTRY_DSN</span><span class="d-val">production 에만</span></div>
+            <div class="d-row"><span style="color:#b58900;font-weight:bold">≠</span><span class="d-key">DATABASE_URL</span><span class="d-val">값 다름 ••••</span></div>
+            <div class="d-row"><span style="color:#888">=</span><span class="d-key">NODE_ENV</span><span class="d-val">동일</span></div>
+          </div>
+          <div class="cap"><b>환경 비교</b> — staging과 production 사이 빠진 키·바뀐 값을 한눈에. 값은 기본 마스킹, 반대편으로 복사도 한 번에.</div>
+        </div>
+
+        <!-- Command Palette -->
+        <div class="demo raised">
+          <div class="win-head"><span>■ Command Palette</span><span class="dots"><i></i><i></i></span></div>
+          <div class="screen">
+            <div class="d-input">⌕ database▮</div>
+            <div class="d-pal sel">＄ DATABASE_URL &nbsp;(api-server)</div>
+            <div class="d-pal">＄ DATABASE_URL &nbsp;(staging)</div>
+            <div class="d-pal">⧉ Export .env</div>
+            <div class="d-pal">⇄ Compare projects</div>
+            <div style="font-size:10px;color:#888;margin-top:5px">↑↓ 이동 · Enter 복사 · Esc 닫기</div>
+          </div>
+          <div class="cap"><b>커맨드 팔레트</b> — <code>Ctrl+K</code> 한 번으로 프로젝트·변수·액션을 키보드만으로. 마우스가 필요 없습니다.</div>
+        </div>
+
+        <!-- Claude MCP approval -->
+        <div class="demo raised">
+          <div class="win-head"><span>■ Claude Desktop + envyou (MCP)</span><span class="dots"><i></i><i></i></span></div>
+          <div class="screen">
+            <div style="color:#555">🤖 “api-server 의 DATABASE_URL 값 알려줘”</div>
+            <div class="d-approve">
+              <div><b>⚠ envyou 승인 요청</b></div>
+              <div style="font-size:11px;margin-top:3px">Claude 가 <b>DATABASE_URL</b> 을 읽으려 합니다.</div>
+              <div class="btns"><span class="mini-b">거부</span><span class="mini-b pri">허용</span></div>
+            </div>
+          </div>
+          <div class="cap"><b>사람이 승인해야만</b> AI가 시크릿을 봅니다. 매 읽기·쓰기마다 로컬 승인 팝업 — 클라우드 유출 제로.</div>
+        </div>
+
+        <!-- Free -> Pro unlock (wide) -->
+        <div class="demo raised" style="grid-column:1/-1">
+          <div class="win-head"><span>■ Free → Pro 잠금 해제</span><span class="dots"><i></i><i></i></span></div>
+          <div class="screen" style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+            <div>
+              <div style="font-weight:bold;margin-bottom:6px">FREE</div>
+              <div class="d-row"><span class="d-key">프로젝트</span><span class="d-val">3 / 3 🔒</span></div>
+              <div class="d-row"><span class="d-key">변수</span><span class="d-val">10 / 10 🔒</span></div>
+              <div class="d-row"><span class="d-key">커스텀 컬러</span><span class="d-val">🔒 Pro</span></div>
+              <div class="d-row"><span class="d-key">Claude MCP</span><span class="d-val">🔒 Pro</span></div>
+            </div>
+            <div>
+              <div style="font-weight:bold;margin-bottom:6px;color:var(--green)">PRO ✦</div>
+              <div class="d-row"><span class="d-key">프로젝트</span><span class="d-val" style="color:var(--green)">무제한 ✔</span></div>
+              <div class="d-row"><span class="d-key">변수</span><span class="d-val" style="color:var(--green)">무제한 ✔</span></div>
+              <div class="d-row"><span class="d-key">커스텀 컬러</span><span class="d-val" style="color:var(--green)">✔</span></div>
+              <div class="d-row"><span class="d-key">Claude MCP</span><span class="d-val" style="color:var(--green)">✔</span></div>
+            </div>
+          </div>
+          <div class="cap"><b>한 번 결제 $59 · 평생 소장</b> — 무료로 쓰다 상한에 걸리면 앱이 바로 여기로 안내합니다. 구독 없이 평생 업데이트.</div>
+        </div>
+
+      </div>
+    </section>
+
     <!-- Comparison -->
     <section class="panel" id="compare">
-      <div class="sec-title"><span class="chip">02</span><h2>envyou vs dotenv, 1Password, Doppler &amp; Infisical</h2></div>
+      <div class="sec-title"><span class="chip">03</span><h2>envyou vs dotenv, 1Password, Doppler &amp; Infisical</h2></div>
       <p class="sec-sub">Different tools for different jobs. Cloud secrets platforms are great for teams; envyou is built for a single developer who wants secrets to stay encrypted on their own machine, with a one-time price and native Claude Desktop MCP support.</p>
       <div class="cmp-wrap">
         <table class="cmp">
@@ -692,7 +820,7 @@ footer.foot{
 
     <!-- Pricing -->
     <section class="panel" id="pricing">
-      <div class="sec-title"><span class="chip">03</span><h2 data-i18n="sec_pricing">가격 — 구독은 없습니다</h2></div>
+      <div class="sec-title"><span class="chip">04</span><h2 data-i18n="sec_pricing">가격 — 구독은 없습니다</h2></div>
       <p class="sec-sub">한 번 사면 평생 내 것. 단 한 번의 결제로 모든 Pro 기능을 영구히 잠금 해제하세요.</p>
       <div class="pricing">
 
@@ -743,19 +871,33 @@ footer.foot{
 
     <!-- Download -->
     <section class="panel alt" id="download">
-      <div class="sec-title"><span class="chip">04</span><h2 data-i18n="sec_download">다운로드</h2></div>
-      <p class="sec-sub">설치 1분. 지금 받아서 첫 프로젝트를 띄워보세요.</p>
-      <div class="cta-row">
-        <a href="#" class="btn primary big dl" data-os="Windows">⊞ Download for Windows <small style="font-weight:normal">(.msi)</small></a>
-        <a href="#" class="btn big" id="dl-mac" aria-disabled="true" style="opacity:.55">⌘ macOS <small style="font-weight:normal">(coming soon)</small></a>
-        <a href="#" class="btn big dl" data-os="Linux">🐧 Linux <small style="font-weight:normal">(AppImage)</small></a>
+      <div class="sec-title"><span class="chip">05</span><h2 data-i18n="sec_download">다운로드</h2></div>
+      <p class="sec-sub">같은 앱, 두 가지 방식입니다. <b>무료</b>로 받아 바로 시작하고, 원할 때 앱 안에서 <b>Pro</b>를 잠금 해제하세요 — 한 번 결제, 평생 소장.</p>
+
+      <div class="dl-grid">
+        <!-- Free download -->
+        <div class="dl-card raised">
+          <div class="dl-card-head"><span>■ 무료로 시작</span><span>₩0</span></div>
+          <div class="cta-row" style="margin-bottom:10px">
+            <a href="#" class="btn primary big dl" data-os="Windows">⊞ Windows <small style="font-weight:normal">(.msi)</small></a>
+            <a href="#" class="btn big dl" data-os="Linux">🐧 Linux <small style="font-weight:normal">(AppImage)</small></a>
+            <a href="#" class="btn big" id="dl-mac" aria-disabled="true" style="opacity:.55">⌘ macOS <small style="font-weight:normal">(coming soon)</small></a>
+          </div>
+          <p class="dl-note">버튼을 누르면 설치 파일이 <b>바로 다운로드</b>됩니다. Windows는 아직 코드 서명 전이라 SmartScreen 경고가 나올 수 있어요 — <b>추가 정보 → 실행</b>. macOS는 곧 제공됩니다.</p>
+        </div>
+
+        <!-- Pro unlock -->
+        <div class="dl-card pro raised">
+          <div class="dl-card-head"><span>★ Pro로 잠금 해제</span><span>$59 · 평생</span></div>
+          <p class="dl-note" style="margin-bottom:12px">무제한 프로젝트·변수, Claude MCP 연동, 커스텀 컬러, 평생 업데이트. 결제하면 라이선스 키가 이메일로 오고, <b>같은 앱</b>의 “Upgrade to Pro”에 붙여넣으면 즉시 잠금 해제됩니다 (오프라인 인증).</p>
+          <a href="#" class="btn primary big" id="buyProDl">★ 평생 소장 — $59</a>
+        </div>
       </div>
-      <p class="sec-sub" style="margin-top:14px;margin-bottom:0">버튼을 누르면 설치 파일이 바로 다운로드됩니다. Windows는 아직 코드 서명 전이라 SmartScreen 경고가 뜰 수 있어요 — <b>추가 정보 → 실행</b>을 누르면 됩니다. macOS 빌드는 곧 제공됩니다.</p>
     </section>
 
     <!-- FAQ -->
     <section class="panel" id="faq">
-      <div class="sec-title"><span class="chip">05</span><h2 data-i18n="sec_faq">Frequently Asked Questions</h2></div>
+      <div class="sec-title"><span class="chip">06</span><h2 data-i18n="sec_faq">Frequently Asked Questions</h2></div>
       <p class="sec-sub">Common questions from developers about how envyou stores secrets, what it costs, and how the Claude Desktop MCP integration works.</p>
       <div class="faq">
 
@@ -923,11 +1065,12 @@ footer.foot{
   // GNB download routes to the section; if release exists later, swap href.
   $("#gnbDownload").addEventListener("click",function(){say("Jumping to downloads…");});
 
-  // ---- Pro buy → Paddle checkout ----
-  var buyPro = $("#buyPro");
-  if (buyPro) buyPro.addEventListener("click",function(e){
-    e.preventDefault();
-    openCheckout(PRICE_LIFETIME);
+  // ---- Pro buy → Paddle checkout (pricing + download sections) ----
+  $$("#buyPro, #buyProDl").forEach(function(b){
+    b.addEventListener("click",function(e){
+      e.preventDefault();
+      openCheckout(PRICE_LIFETIME);
+    });
   });
 
   // ---- i18n (top-right language selector) ----
