@@ -26,7 +26,7 @@ jobs:
           - platform: ubuntu-22.04
             args: ""
           - platform: windows-latest
-            args: ""
+            args: "--config sign.win.json"
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -53,10 +53,28 @@ jobs:
             build-essential \
             file
 
+      # ---- Windows code signing via Azure Trusted Signing ----
+      - name: Install trusted-signing-cli (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: cargo install trusted-signing-cli@0.5.0
+
+      - name: Write Windows signing config
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          cat > sign.win.json <<'JSON'
+          { "bundle": { "windows": { "signCommand": "trusted-signing-cli -e __ENDPOINT__ -a __ACCOUNT__ -c __PROFILE__ %1" } } }
+          JSON
+          sed -i "s|__ENDPOINT__|${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}|; s|__ACCOUNT__|${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}|; s|__PROFILE__|${{ secrets.AZURE_CERT_PROFILE }}|" sign.win.json
+
       - name: Build & release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ---- Windows: Azure Trusted Signing credentials (used by trusted-signing-cli) ----
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           # ---- macOS signing + notarization (optional) ----
           # Leave these secrets unset to produce an UNSIGNED macOS build.
           # Set them (Apple Developer Program) to auto-sign + notarize:
