@@ -834,11 +834,23 @@ footer.foot{
   </div>
 </div>
 
+<!-- Paddle Billing checkout (client-side token is public; safe to embed) -->
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 <script>
 (function(){
   "use strict";
   var $=function(s,r){return (r||document).querySelector(s)};
   var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+
+  // ---- Paddle checkout config ----
+  var PADDLE_TOKEN   = "live_6914babf47b12082b0f875b312e";
+  var PRICE_LIFETIME = "pri_01kwxn90wjx0hgk0c8mthxhs61";
+  var PRICE_ANNUAL   = "pri_01kwxn8b9q229nmga202k1pc60";
+  if (window.Paddle) { Paddle.Initialize({ token: PADDLE_TOKEN }); }
+  function openCheckout(priceId){
+    if (!window.Paddle) { location.href = "mailto:ceo@eternalsix.com?subject=envyou%20Pro"; return; }
+    Paddle.Checkout.open({ items:[{ priceId: priceId, quantity: 1 }] });
+  }
 
   // Footer year
   $("#year").textContent=new Date().getFullYear();
@@ -893,12 +905,11 @@ footer.foot{
   // GNB download routes to the section; if release exists later, swap href.
   $("#gnbDownload").addEventListener("click",function(){say("Jumping to downloads…");});
 
-  // ---- Pro buy (placeholder for Paddle checkout) ----
-  $("#buyPro").addEventListener("click",function(e){
+  // ---- Pro buy → Paddle checkout (Lifetime) ----
+  var buyPro = $("#buyPro");
+  if (buyPro) buyPro.addEventListener("click",function(e){
     e.preventDefault();
-    openDlg("Paddle Checkout",
-      "Pro 라이선스(<b>$9.99 · 1회 결제</b>) 결제는 정식 출시와 함께 Paddle로 연결됩니다.<br><br>구독이 아니라 <b>평생 소장</b>이며, 이메일로 오프라인 인증 키가 발급됩니다.",
-      "🛒");
+    openCheckout(PRICE_LIFETIME);
   });
 })();
 </script>
