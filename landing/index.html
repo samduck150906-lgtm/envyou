@@ -515,14 +515,23 @@ footer.foot{
     <div class="logo"><span class="mark">e</span> envyou</div>
     <button class="btn menu-toggle" id="menuToggle" aria-label="Menu" style="padding:6px 12px">≡</button>
     <nav id="nav">
-      <a href="#features"><u>F</u>eatures</a>
-      <a href="#compare"><u>C</u>ompare</a>
-      <a href="#pricing"><u>P</u>ricing</a>
-      <a href="#faq">FA<u>Q</u></a>
+      <a href="#features" data-i18n="nav_features">Features</a>
+      <a href="#compare" data-i18n="nav_compare">Compare</a>
+      <a href="#pricing" data-i18n="nav_pricing">Pricing</a>
+      <a href="#faq" data-i18n="nav_faq">FAQ</a>
       <a href="https://github.com/samduck150906-lgtm/envyou" target="_blank" rel="noopener">GitHub</a>
     </nav>
     <span class="spacer"></span>
-    <a href="#download" class="btn primary gnb-dl" id="gnbDownload">⬇ Download for <span id="gnbOS">Windows</span></a>
+    <select id="lang" aria-label="Language" style="font-family:inherit;font-size:12px;margin-right:8px;border:2px solid var(--shadow);background:var(--gray);padding:3px 4px">
+      <option value="en">EN</option>
+      <option value="ko">한국어</option>
+      <option value="ja">日本語</option>
+      <option value="zh">中文</option>
+      <option value="th">ไทย</option>
+      <option value="vi">Tiếng Việt</option>
+      <option value="hi">हिन्दी</option>
+    </select>
+    <a href="#download" class="btn primary gnb-dl" id="gnbDownload">⬇ <span data-i18n="gnb_dl">Download for</span> <span id="gnbOS">Windows</span></a>
   </header>
 
   <!-- ===== Content ===== -->
@@ -532,13 +541,13 @@ footer.foot{
     <section class="hero">
       <div class="hero-text">
         <span class="eyebrow">▶ TAURI · RUST · LOCAL-ONLY</span>
-        <h1>Stop Context<br>Switching.<br><span class="hl">Local-First</span> Environment Variable Manager.</h1>
+        <h1 data-i18n="hero_h1">Stop Context<br>Switching.<br><span class="hl">Local-First</span> Environment Variable Manager.</h1>
         <p class="def"><b>envyou</b> is a local-first, encrypted environment variable manager for developers that stores your <code>.env</code> secrets and API keys only on your machine (AES-256-GCM), never in the cloud — and connects to Claude Desktop over MCP so AI can read and write environment variables only after you approve each request.</p>
-        <p class="lead">에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.</p>
+        <p class="lead" data-i18n="hero_lead">에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.</p>
         <p class="desc">무거운 클라우드 설정 도구는 그만. envyou는 수 MB짜리 초경량 데스크톱 앱으로, 모든 키를 <b>로컬에만 AES-256으로 암호화 저장</b>합니다. 그리고 Claude Desktop과 MCP로 연동돼 AI가 직접 환경변수를 읽고 쓸 수 있죠.</p>
         <div class="cta-row">
-          <a href="#download" class="btn primary big">⬇ Download Free</a>
-          <a href="#pricing" class="btn big cta">Pro 보기 — $59 평생</a>
+          <a href="#download" class="btn primary big"><span data-i18n="cta_dl">⬇ Download Free</span></a>
+          <a href="#pricing" class="btn big cta"><span data-i18n="cta_pro">Pro 보기 — $59 평생</span></a>
         </div>
         <div class="trust">
           <span class="tag">Zero Cloud</span>
@@ -578,7 +587,7 @@ footer.foot{
 
     <!-- Features -->
     <section class="panel alt" id="features">
-      <div class="sec-title"><span class="chip">01</span><h2>왜 envyou 인가</h2></div>
+      <div class="sec-title"><span class="chip">01</span><h2 data-i18n="sec_why">왜 envyou 인가</h2></div>
       <p class="sec-sub">무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.</p>
       <div class="features">
         <div class="feat raised">
@@ -683,7 +692,7 @@ footer.foot{
 
     <!-- Pricing -->
     <section class="panel" id="pricing">
-      <div class="sec-title"><span class="chip">03</span><h2>가격 — 구독은 없습니다</h2></div>
+      <div class="sec-title"><span class="chip">03</span><h2 data-i18n="sec_pricing">가격 — 구독은 없습니다</h2></div>
       <p class="sec-sub">한 번 사면 평생 내 것. 단 한 번의 결제로 모든 Pro 기능을 영구히 잠금 해제하세요.</p>
       <div class="pricing">
 
@@ -722,7 +731,7 @@ footer.foot{
               <li><span class="yes">✔</span> 마스터 키 보안 스토리지</li>
               <li><span class="yes">✔</span> 오프라인 라이선스 인증</li>
             </ul>
-            <a href="#" class="btn primary" id="buyPro">★ 평생 소장 — $59</a>
+            <a href="#" class="btn primary" id="buyPro" data-i18n="pro_buy">★ 평생 소장 — $59</a>
           </div>
         </div>
 
@@ -731,7 +740,7 @@ footer.foot{
 
     <!-- Download -->
     <section class="panel alt" id="download">
-      <div class="sec-title"><span class="chip">04</span><h2>다운로드</h2></div>
+      <div class="sec-title"><span class="chip">04</span><h2 data-i18n="sec_download">다운로드</h2></div>
       <p class="sec-sub">설치 1분. 지금 받아서 첫 프로젝트를 띄워보세요.</p>
       <div class="cta-row">
         <a href="#" class="btn primary big dl" data-os="Windows">⊞ Download for Windows <small style="font-weight:normal">(.msi)</small></a>
@@ -743,7 +752,7 @@ footer.foot{
 
     <!-- FAQ -->
     <section class="panel" id="faq">
-      <div class="sec-title"><span class="chip">05</span><h2>Frequently Asked Questions</h2></div>
+      <div class="sec-title"><span class="chip">05</span><h2 data-i18n="sec_faq">Frequently Asked Questions</h2></div>
       <p class="sec-sub">Common questions from developers about how envyou stores secrets, what it costs, and how the Claude Desktop MCP integration works.</p>
       <div class="faq">
 
@@ -906,6 +915,84 @@ footer.foot{
     e.preventDefault();
     openCheckout(PRICE_LIFETIME);
   });
+
+  // ---- i18n (top-right language selector) ----
+  var I18N = {
+    en: {
+      nav_features:"Features", nav_compare:"Compare", nav_pricing:"Pricing", nav_faq:"FAQ",
+      gnb_dl:"Download for", cta_dl:"⬇ Download Free", cta_pro:"See Pro — $59 lifetime",
+      hero_h1:'Stop Context<br>Switching.<br><span class="hl">Local-First</span> Environment Variable Manager.',
+      hero_lead:'Stop jumping between your editor and terminal. Keep your <code>.env</code> always on top and copy it with one click.',
+      sec_why:"Why envyou", sec_pricing:"Pricing — no subscription", sec_download:"Download",
+      sec_faq:"Frequently Asked Questions", pro_buy:"★ Lifetime — $59"
+    },
+    ko: {
+      nav_features:"기능", nav_compare:"비교", nav_pricing:"가격", nav_faq:"자주 묻는 질문",
+      gnb_dl:"다운로드", cta_dl:"⬇ 무료 다운로드", cta_pro:"Pro 보기 — $59 평생",
+      hero_h1:'컨텍스트 전환은<br>이제 그만.<br><span class="hl">로컬 우선</span> 환경변수 매니저.',
+      hero_lead:'에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.',
+      sec_why:"왜 envyou 인가", sec_pricing:"가격 — 구독은 없습니다", sec_download:"다운로드",
+      sec_faq:"자주 묻는 질문", pro_buy:"★ 평생 소장 — $59"
+    },
+    ja: {
+      nav_features:"機能", nav_compare:"比較", nav_pricing:"価格", nav_faq:"よくある質問",
+      gnb_dl:"ダウンロード", cta_dl:"⬇ 無料ダウンロード", cta_pro:"Pro を見る — $59 買い切り",
+      hero_h1:'コンテキストの<br>切り替えは、もう終わり。<br><span class="hl">ローカルファースト</span>な環境変数マネージャー。',
+      hero_lead:'エディタとターミナルを行き来しない。<code>.env</code> を常に最前面に置き、ワンクリックでコピー。',
+      sec_why:"なぜ envyou か", sec_pricing:"価格 — サブスクなし", sec_download:"ダウンロード",
+      sec_faq:"よくある質問", pro_buy:"★ 買い切り — $59"
+    },
+    zh: {
+      nav_features:"功能", nav_compare:"对比", nav_pricing:"价格", nav_faq:"常见问题",
+      gnb_dl:"下载", cta_dl:"⬇ 免费下载", cta_pro:"查看 Pro — $59 永久",
+      hero_h1:'告别频繁<br>切换上下文。<br><span class="hl">本地优先</span>的环境变量管理器。',
+      hero_lead:'不再在编辑器和终端之间来回切换。让 <code>.env</code> 始终置顶，一键复制。',
+      sec_why:"为什么选 envyou", sec_pricing:"价格 — 无订阅", sec_download:"下载",
+      sec_faq:"常见问题", pro_buy:"★ 永久 — $59"
+    },
+    th: {
+      nav_features:"คุณสมบัติ", nav_compare:"เปรียบเทียบ", nav_pricing:"ราคา", nav_faq:"คำถามที่พบบ่อย",
+      gnb_dl:"ดาวน์โหลด", cta_dl:"⬇ ดาวน์โหลดฟรี", cta_pro:"ดู Pro — $59 ตลอดชีพ",
+      hero_h1:'เลิกสลับ<br>ไปมา<br>ตัวจัดการตัวแปรสภาพแวดล้อม<span class="hl">แบบโลคัลก่อน</span>',
+      hero_lead:'ไม่ต้องสลับไปมาระหว่างเอดิเตอร์กับเทอร์มินัล วาง <code>.env</code> ไว้บนสุดเสมอ แล้วคัดลอกด้วยคลิกเดียว',
+      sec_why:"ทำไมต้อง envyou", sec_pricing:"ราคา — ไม่มีค่าสมาชิกรายเดือน", sec_download:"ดาวน์โหลด",
+      sec_faq:"คำถามที่พบบ่อย", pro_buy:"★ ตลอดชีพ — $59"
+    },
+    vi: {
+      nav_features:"Tính năng", nav_compare:"So sánh", nav_pricing:"Giá", nav_faq:"Câu hỏi thường gặp",
+      gnb_dl:"Tải về", cta_dl:"⬇ Tải miễn phí", cta_pro:"Xem Pro — $59 trọn đời",
+      hero_h1:'Ngừng chuyển<br>ngữ cảnh.<br>Trình quản lý biến môi trường <span class="hl">ưu tiên cục bộ</span>.',
+      hero_lead:'Đừng qua lại giữa trình soạn thảo và terminal. Luôn ghim <code>.env</code> lên trên và sao chép chỉ với một cú nhấp.',
+      sec_why:"Vì sao chọn envyou", sec_pricing:"Giá — không thuê bao", sec_download:"Tải về",
+      sec_faq:"Câu hỏi thường gặp", pro_buy:"★ Trọn đời — $59"
+    },
+    hi: {
+      nav_features:"विशेषताएँ", nav_compare:"तुलना", nav_pricing:"मूल्य", nav_faq:"सामान्य प्रश्न",
+      gnb_dl:"डाउनलोड", cta_dl:"⬇ मुफ़्त डाउनलोड", cta_pro:"Pro देखें — $59 आजीवन",
+      hero_h1:'संदर्भ बदलना<br>बंद करें।<br><span class="hl">लोकल-फ़र्स्ट</span> एनवायरनमेंट वेरिएबल मैनेजर।',
+      hero_lead:'एडिटर और टर्मिनल के बीच न भटकें। अपनी <code>.env</code> हमेशा सबसे ऊपर रखें और एक क्लिक में कॉपी करें।',
+      sec_why:"envyou क्यों", sec_pricing:"मूल्य — कोई सदस्यता नहीं", sec_download:"डाउनलोड",
+      sec_faq:"अक्सर पूछे जाने वाले प्रश्न", pro_buy:"★ आजीवन — $59"
+    }
+  };
+  function applyLang(l){
+    var d = I18N[l] || I18N.en;
+    $$("[data-i18n]").forEach(function(n){
+      var k = n.getAttribute("data-i18n");
+      if (d[k] != null) n.innerHTML = d[k];
+    });
+    document.documentElement.setAttribute("lang", l);
+    try { localStorage.setItem("envyou_lang", l); } catch(e){}
+    var sel = $("#lang"); if (sel) sel.value = l;
+  }
+  (function initLang(){
+    var saved = null; try { saved = localStorage.getItem("envyou_lang"); } catch(e){}
+    var l = saved || (navigator.language || "en").slice(0,2).toLowerCase();
+    if (!I18N[l]) l = "en";
+    var sel = $("#lang");
+    if (sel) sel.addEventListener("change", function(){ applyLang(sel.value); });
+    applyLang(l);
+  })();
 })();
 </script>
 </body>
