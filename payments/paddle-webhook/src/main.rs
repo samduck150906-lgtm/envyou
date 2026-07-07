@@ -61,7 +61,8 @@ fn load_config() -> Config {
         resend_api_key: require("RESEND_API_KEY"),
         email_from: env_or("EMAIL_FROM", "envyou <onboarding@resend.dev>"),
         price_lifetime: require("PRICE_LIFETIME"),
-        price_annual: require("PRICE_ANNUAL"),
+        // Optional: only set if you also sell an annual plan. Empty = lifetime only.
+        price_annual: env_or("PRICE_ANNUAL", String::new().as_str()),
     }
 }
 
@@ -154,7 +155,7 @@ fn handle_transaction(cfg: &Config, event: &Value) -> Result<String, String> {
                 .unwrap_or("");
             if pid == cfg.price_lifetime {
                 is_lifetime = true;
-            } else if pid == cfg.price_annual {
+            } else if !cfg.price_annual.is_empty() && pid == cfg.price_annual {
                 is_annual = true;
             }
         }
