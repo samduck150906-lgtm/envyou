@@ -39,7 +39,34 @@ Claude Desktop over MCP **only when you click "Allow"**. Built on **Tauri v2
 | **Human-in-the-loop** | `read`/`write` tool calls block on a native OS approval dialog before any secret is released. |
 | **Claude Desktop linking** | One click merges an `envyou` entry into `claude_desktop_config.json` **non-destructively** (existing servers preserved). |
 | **Retro UI** | Vanilla HTML/CSS/JS floating window with an always-on-top pin. |
+| **Developer tools** | Smart Import (paste `.env`/`export`/JSON/`process.env`), multi-format Export, project Diff, Command Palette, and a Secret Generator — see below. |
 | **Freemium** | Free tier caps (3 projects / 10 vars per project) enforced; Pro unlock via an offline, **Ed25519-signed** license. |
+
+---
+
+## Developer tools
+
+Everyday `.env` workflow helpers, all local and all free. Pure logic lives in
+`src/js/devtools.js` (unit-tested via `node test/devtools.test.js`); nothing
+touches the vault encryption or the network.
+
+- **Smart Import (`⇪`)** — paste a `.env` file, `export KEY=…` lines, a JSON
+  object, or code using `process.env.KEY`. A preview flags new vs existing,
+  empty/public/secret/duplicate keys, and lets you resolve conflicts
+  (overwrite / keep / rename / skip) before saving.
+- **Smart Export (`⧉`)** — `.env`, `.env.local`, shell `export`, JSON, Docker
+  Compose, GitHub Actions (`${{ secrets.KEY }}`), or `.env.example`. Values /
+  keys-only / masked, per-variable selection, copy or download. Raw-secret
+  exports warn and confirm first.
+- **Diff (`⇄`)** — compare two projects (only-in-A / only-in-B / changed /
+  same); values masked by default; copy a missing key across.
+- **Command Palette (`⌕`, `Ctrl/Cmd+K`, or `/`)** — keyboard-first search over
+  projects, variables, and actions.
+- **Secret Generator (`🔑`)** — hex / base64 / URL-safe / UUID v4 / strong
+  password / JWT secret from the OS CSPRNG, inserted straight into a variable.
+
+See [`docs/DEVELOPER_UX_ROADMAP.md`](docs/DEVELOPER_UX_ROADMAP.md) for what's
+next (in-project environments, templates, Git-safety, CLI, MCP policies).
 
 ---
 

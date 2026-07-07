@@ -13,6 +13,7 @@
       <div class="titlebar" data-tauri-drag-region>
         <span class="title" data-tauri-drag-region>■ envyou</span>
         <div class="title-buttons">
+          <button id="cmd-btn" class="title-btn" title="Command palette (Ctrl+K)" aria-label="Open command palette">⌕</button>
           <button id="pin-btn" class="title-btn" title="Always on top" aria-label="Toggle always on top" aria-pressed="true">📌</button>
           <button id="settings-btn" class="title-btn" title="Settings" aria-label="Open settings">≡</button>
           <button id="min-btn" class="title-btn" title="Minimize to tray" aria-label="Minimize to tray">_</button>
@@ -39,7 +40,10 @@
         <aside class="sidebar">
           <div class="panel-head">
             <span><span data-i18n="projects">PROJECTS</span> <span id="projects-count" class="head-count"></span></span>
-            <button id="add-project-btn" class="mini-btn" title="New project" aria-label="New project">+</button>
+            <div>
+              <button id="diff-btn" class="mini-btn" title="Compare two projects" aria-label="Compare two projects">⇄</button>
+              <button id="add-project-btn" class="mini-btn" title="New project" aria-label="New project">+</button>
+            </div>
           </div>
           <ul id="project-list" class="project-list"></ul>
         </aside>
@@ -75,6 +79,7 @@
     </div>
 
     <script src="js/api.js"></script>
+    <script src="js/devtools.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>

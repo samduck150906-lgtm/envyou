@@ -7,6 +7,9 @@
   const COLORS = ["#008080", "#000080", "#FF0000", "#808000", "#800080", "#008000", "#000000"];
   const FREE_MAX_PROJECTS = 3;
   const FREE_MAX_VARS = 10;
+  // Pure developer-convenience logic (parse/export/generate/diff). Loaded from
+  // devtools.js before this script.
+  const DEV = window.EnvyouDev || {};
 
   const state = {
     data: null,
@@ -283,83 +286,365 @@
   }
 
   // Copy the whole project as a ready-to-paste .env block (KEY=value lines).
-  async function copyEnv() {
-    const p = selectedProject();
-    if (!p || !p.variables.length) {
-      status("No variables to copy.");
-      return;
-    }
-    const body = p.variables.map((v) => `${v.key}=${v.value}`).join("\n") + "\n";
-    try {
-      await navigator.clipboard.writeText(body);
-      status(`Copied ${p.variables.length} variables as .env`);
-    } catch {
-      status("Copy failed (clipboard unavailable)");
-    }
+  function looksSensitiveKey(key) {
+    return DEV.classifyKey ? DEV.classifyKey(key).isSensitive : /(SECRET|TOKEN|KEY|PASSWORD|PRIVATE)/i.test(key);
   }
 
-  // Paste a .env blob and bulk-upsert its KEY=value lines. Respects the
-  // free-tier variable cap: brand-new keys past the cap are skipped and the
-  // Pro upsell is shown.
-  function importEnvModal() {
+  // ---- Smart Import: paste any format -> preview -> resolve -> apply --------
+  function smartImportModal() {
     const p = selectedProject();
     if (!p) {
       status("Create or select a project first.");
       return;
     }
-    const ta = el("textarea", { rows: "8", placeholder: "DATABASE_URL=postgres://…\nPORT=8080\n# comments are ignored" });
+    const ta = el("textarea", { rows: "7", placeholder: "Paste .env, `export KEY=...`, JSON, or code using process.env.KEY" });
     const err = el("p", { class: "error-text" });
+    const summary = el("p", { class: "hint" });
+    const preview = el("div", { style: "max-height:210px;overflow:auto;margin-top:4px" });
+    const actionsBar = el("div", { class: "modal-actions" });
 
-    const doImport = async () => {
-      const pairs = [];
-      ta.value.split(/\r?\n/).forEach((raw) => {
-        let line = raw.trim();
-        if (!line || line.startsWith("#")) return;
-        if (/^export\s+/i.test(line)) line = line.replace(/^export\s+/i, "");
-        const eq = line.indexOf("=");
-        if (eq <= 0) return;
-        const key = line.slice(0, eq).trim();
-        let val = line.slice(eq + 1).trim();
-        if (val.length >= 2 && ((val[0] === '"' && val.endsWith('"')) || (val[0] === "'" && val.endsWith("'")))) {
-          val = val.slice(1, -1);
-        }
-        if (key) pairs.push([key, val]);
-      });
-      if (!pairs.length) {
-        err.textContent = "No KEY=value lines found.";
+    let parsed = null;
+    const choices = new Map(); // index -> { action, newKey }
+
+    const existingKeys = () => new Set((selectedProject()?.variables || []).map((v) => v.key));
+
+    function renderPreview() {
+      preview.innerHTML = "";
+      const exist = existingKeys();
+      if (!parsed || !parsed.entries.length) {
+        preview.appendChild(el("p", { class: "empty-hint", text: "Nothing to preview yet." }));
         return;
       }
-      let added = 0, updated = 0, blocked = 0;
-      for (const [key, val] of pairs) {
+      parsed.entries.forEach((entry, i) => {
+        const isUpdate = exist.has(entry.key);
+        const tags = [];
+        if (entry.isEmpty) tags.push("empty");
+        if (entry.isPublic) tags.push("public");
+        if (entry.isSensitive) tags.push("secret");
+        if (entry.duplicate) tags.push("dup");
+
+        const cur = choices.get(i) || { action: isUpdate ? "overwrite" : "add", newKey: "" };
+        choices.set(i, cur);
+
+        const sel = el("select", { style: "font-family:inherit;font-size:10px" });
+        const opts = isUpdate
+          ? [["overwrite", "overwrite"], ["skip", "keep existing"], ["rename", "save as…"]]
+          : [["add", "add"], ["skip", "skip"], ["rename", "save as…"]];
+        opts.forEach(([v, l]) => sel.appendChild(el("option", { value: v, text: l })));
+        sel.value = cur.action;
+
+        const rename = el("input", { type: "text", value: cur.newKey, placeholder: "NEW_KEY", style: "font-size:10px;width:110px;display:" + (cur.action === "rename" ? "inline-block" : "none") });
+        rename.addEventListener("input", () => { cur.newKey = rename.value.trim(); });
+        sel.addEventListener("change", () => { cur.action = sel.value; rename.style.display = cur.action === "rename" ? "inline-block" : "none"; });
+
+        const shown = entry.isEmpty ? "(empty)" : looksSensitiveKey(entry.key) ? "••••" : entry.value;
+        preview.appendChild(el("div", { class: "var-row", style: "gap:6px;align-items:center" }, [
+          el("span", { text: isUpdate ? "UPDATE" : "NEW", style: "font-size:9px;font-weight:bold;color:" + (isUpdate ? "#800000" : "#006000") }),
+          el("span", { class: "var-key", text: entry.key }),
+          el("span", { class: "var-val", text: shown, style: "opacity:.7" }),
+          el("span", { text: tags.join(" · "), style: "font-size:9px;opacity:.6" }),
+          sel,
+          rename,
+        ]));
+      });
+    }
+
+    function doParse() {
+      err.textContent = "";
+      parsed = DEV.parseEnvText(ta.value);
+      choices.clear();
+      if (!parsed.entries.length) {
+        summary.textContent = "";
+        err.textContent = "No variables found. Paste .env, export lines, or JSON.";
+        renderPreview();
+        return;
+      }
+      const exist = existingKeys();
+      const news = parsed.entries.filter((e) => !exist.has(e.key)).length;
+      summary.textContent = `${parsed.entries.length} parsed — ${news} new, ${parsed.entries.length - news} existing` + (parsed.ignored.length ? `, ${parsed.ignored.length} ignored` : "");
+      renderPreview();
+      renderActions(true);
+    }
+
+    async function doImport() {
+      let added = 0, updated = 0, skipped = 0, blocked = 0;
+      for (let i = 0; i < parsed.entries.length; i++) {
+        const entry = parsed.entries[i];
+        const c = choices.get(i) || { action: "add" };
+        if (c.action === "skip") { skipped++; continue; }
         const proj = selectedProject();
         if (!proj) break;
-        const exists = proj.variables.some((v) => v.key === key);
-        if (!exists && !canAddVariable(proj)) {
-          blocked++;
-          continue;
+        let key = entry.key;
+        if (c.action === "rename") {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.newKey || "")) { skipped++; continue; }
+          key = c.newKey;
         }
-        const ok = await run(window.api.upsertVariable(proj.id, key, val, null, true));
+        const exists = proj.variables.some((v) => v.key === key);
+        if (!exists && !canAddVariable(proj)) { blocked++; continue; }
+        const ok = await run(window.api.upsertVariable(proj.id, key, entry.value, null, looksSensitiveKey(key)));
         if (ok) exists ? updated++ : added++;
       }
       closeModal();
-      if (blocked > 0) {
-        status(`Imported ${added + updated}, ${blocked} blocked by free cap`);
-        proLockedModal("locked_vars");
-      } else {
-        status(`Imported ${added} new, updated ${updated}`);
-      }
-    };
+      status(`Imported ${added} new, updated ${updated}` + (skipped ? `, skipped ${skipped}` : "") + (blocked ? `, ${blocked} blocked by free cap` : ""));
+      if (blocked > 0) proLockedModal("locked_vars");
+    }
 
-    openModal(t("import_title"), [
-      el("p", { class: "hint", text: t("import_hint") }),
+    function renderActions(hasPreview) {
+      actionsBar.innerHTML = "";
+      actionsBar.appendChild(el("button", { class: "btn", text: "Cancel", onclick: closeModal }));
+      actionsBar.appendChild(el("button", { class: "btn", text: "Preview", onclick: doParse }));
+      if (hasPreview) actionsBar.appendChild(el("button", { class: "btn primary", text: "Import", onclick: doImport }));
+    }
+
+    renderActions(false);
+    openModal("Smart Import", [
+      el("p", { class: "hint", text: "Paste any format — .env, export lines, JSON, or code using process.env.KEY. Review, resolve conflicts, then import." }),
       el("div", { class: "field" }, [ta]),
+      summary,
+      preview,
       err,
-      el("div", { class: "modal-actions" }, [
-        el("button", { class: "btn", text: t("cancel"), onclick: closeModal }),
-        el("button", { class: "btn primary", text: t("import_btn"), onclick: doImport }),
-      ]),
+      actionsBar,
     ]);
     ta.focus();
+  }
+
+  // ---- Smart Export: many formats, masking, selection ----------------------
+  function exportModal() {
+    const p = selectedProject();
+    if (!p || !p.variables.length) {
+      status("No variables to export.");
+      return;
+    }
+    const fmt = el("select", { style: "font-family:inherit" });
+    [["dotenv", ".env"], ["dotenv-local", ".env.local"], ["shell", "export KEY=…"], ["json", "JSON"], ["docker", "Docker Compose"], ["gha", "GitHub Actions"], ["example", ".env.example"]]
+      .forEach(([v, l]) => fmt.appendChild(el("option", { value: v, text: l })));
+    const keysOnly = el("input", { type: "checkbox" });
+    const maskVals = el("input", { type: "checkbox" });
+    const out = el("textarea", { rows: "8", readonly: "readonly", style: "width:100%;font-size:11px" });
+    const warn = el("p", { class: "error-text" });
+
+    const varChecks = p.variables.map((v) => {
+      const cb = el("input", { type: "checkbox" });
+      cb.checked = true;
+      return { cb, v };
+    });
+    const selectedKeys = () => varChecks.filter((x) => x.cb.checked).map((x) => x.v.key);
+    const anySensitive = () => varChecks.some((x) => x.cb.checked && looksSensitiveKey(x.v.key));
+    const isRaw = () => !keysOnly.checked && !maskVals.checked && fmt.value !== "gha" && fmt.value !== "example";
+
+    function refresh() {
+      out.value = DEV.formatExport(p.variables, fmt.value, { keysOnly: keysOnly.checked, maskValues: maskVals.checked, selectedKeys: selectedKeys() });
+      warn.textContent = isRaw() && anySensitive() ? "⚠ This output contains raw secrets. Do not commit it to Git." : "";
+    }
+    [fmt, keysOnly, maskVals].forEach((c) => c.addEventListener("change", refresh));
+    varChecks.forEach((x) => x.cb.addEventListener("change", refresh));
+
+    const copy = async () => {
+      if (isRaw() && anySensitive() && !confirm("This copies RAW secrets to your clipboard. Continue?")) return;
+      try { await navigator.clipboard.writeText(out.value); status("Export copied to clipboard"); }
+      catch { status("Copy failed (clipboard unavailable)"); }
+    };
+    const nameByFmt = { dotenv: ".env", "dotenv-local": ".env.local", shell: "env.sh", json: "env.json", docker: "compose-env.yml", gha: "env.yml", example: ".env.example" };
+    const download = () => {
+      if (isRaw() && anySensitive() && !confirm("This file will contain RAW secrets. Make sure it is not committed to Git. Continue?")) return;
+      try {
+        const url = URL.createObjectURL(new Blob([out.value], { type: "text/plain" }));
+        const a = el("a", { href: url, download: nameByFmt[fmt.value] || "export.txt" });
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status("Saved " + (nameByFmt[fmt.value] || "export.txt"));
+      } catch { status("Download unavailable — use Copy."); }
+    };
+
+    const varList = el("div", { style: "max-height:110px;overflow:auto;border:2px solid var(--dark-gray,#808080);padding:4px;margin:4px 0" },
+      varChecks.map((x) => el("label", { class: "checkbox-row", style: "font-size:11px" }, [x.cb, document.createTextNode(" " + x.v.key)])));
+
+    openModal("Export — " + p.name, [
+      el("div", { class: "field" }, [el("label", { text: "Format" }), fmt]),
+      el("label", { class: "checkbox-row" }, [keysOnly, document.createTextNode(" Keys only (no values)")]),
+      el("label", { class: "checkbox-row" }, [maskVals, document.createTextNode(" Mask values (••••)")]),
+      el("div", { class: "field" }, [el("label", { text: "Variables" }), varList]),
+      out,
+      warn,
+      el("div", { class: "modal-actions" }, [
+        el("button", { class: "btn", text: "Close", onclick: closeModal }),
+        el("button", { class: "btn", text: "Download", onclick: download }),
+        el("button", { class: "btn primary", text: "Copy", onclick: copy }),
+      ]),
+    ]);
+    refresh();
+  }
+
+  // ---- Secret Generator ----------------------------------------------------
+  function secretGenModal(onInsert) {
+    const type = el("select", { style: "font-family:inherit" });
+    [["hex", "Random hex"], ["base64", "Base64"], ["urlsafe", "URL-safe token"], ["uuid", "UUID v4"], ["password", "Strong password"], ["jwt", "JWT secret"]]
+      .forEach(([v, l]) => type.appendChild(el("option", { value: v, text: l })));
+    const length = el("input", { type: "number", value: "32", min: "8", max: "256", style: "width:80px" });
+    const symbols = el("input", { type: "checkbox" });
+    const out = el("input", { type: "text", readonly: "readonly", style: "width:100%;font-family:monospace" });
+
+    const gen = () => {
+      try { out.value = DEV.generateSecret(type.value, { length: parseInt(length.value, 10) || 32, symbols: symbols.checked }); }
+      catch { out.value = ""; }
+    };
+    [type, length, symbols].forEach((c) => c.addEventListener("change", gen));
+    const copy = async () => {
+      try { await navigator.clipboard.writeText(out.value); status("Secret copied"); }
+      catch { status("Copy failed"); }
+    };
+    const actions = [
+      el("button", { class: "btn", text: "Close", onclick: closeModal }),
+      el("button", { class: "btn", text: "Regenerate", onclick: gen }),
+      el("button", { class: "btn", text: "Copy", onclick: copy }),
+    ];
+    if (onInsert) actions.push(el("button", { class: "btn primary", text: "Use value", onclick: () => { onInsert(out.value); closeModal(); } }));
+
+    openModal("Secret Generator", [
+      el("p", { class: "hint", text: "Generated locally with your OS secure random (CSPRNG). Never sent anywhere." }),
+      el("div", { class: "field" }, [el("label", { text: "Type" }), type]),
+      el("div", { class: "field" }, [el("label", { text: "Length (bytes / password chars)" }), length]),
+      el("label", { class: "checkbox-row" }, [symbols, document.createTextNode(" Include symbols (password)")]),
+      el("div", { class: "field" }, [el("label", { text: "Result" }), out]),
+      el("div", { class: "modal-actions" }, actions),
+    ]);
+    gen();
+  }
+
+  // ---- Command Palette (Ctrl+K / "/") --------------------------------------
+  function commandPalette() {
+    const input = el("input", { type: "text", placeholder: "Search projects, variables, or actions…", "aria-label": "Command palette", style: "width:100%" });
+    const listEl = el("ul", { style: "list-style:none;margin:6px 0 0;padding:0;max-height:260px;overflow:auto" });
+    let items = [];
+    let sel = 0;
+
+    const acts = [
+      { label: "＋ New variable", run: () => { const p = selectedProject(); if (!p) return status("Select a project first."); canAddVariable(p) ? editVarModal(p, null) : proLockedModal("locked_vars"); } },
+      { label: "＋ New project", run: () => (canAddProject() ? projectModal(null) : proLockedModal("locked_projects")) },
+      { label: "⇪ Smart Import", run: smartImportModal },
+      { label: "⧉ Export", run: exportModal },
+      { label: "⇄ Compare projects (Diff)", run: diffModal },
+      { label: "🔑 Secret generator", run: () => secretGenModal(null) },
+      { label: "≡ Settings", run: settingsModal },
+    ];
+    if (!isPro()) acts.push({ label: "★ Upgrade to Pro", run: () => upgradeModal() });
+    const projs = (state.data.projects || []).map((p) => ({ label: "📁 " + p.name, run: () => { state.selectedProjectId = p.id; render(); } }));
+    const vars = [];
+    (state.data.projects || []).forEach((p) =>
+      p.variables.forEach((v) =>
+        vars.push({ label: "＄ " + v.key + "  (" + p.name + ")", run: async () => { try { await navigator.clipboard.writeText(v.value); status("Copied " + v.key); } catch { status("Copy failed"); } } })));
+    const ALL = acts.concat(projs, vars);
+
+    function draw() {
+      const q = input.value.trim().toLowerCase();
+      items = q ? ALL.filter((it) => it.label.toLowerCase().includes(q)) : ALL;
+      if (sel >= items.length) sel = Math.max(0, items.length - 1);
+      listEl.innerHTML = "";
+      items.forEach((it, i) => {
+        listEl.appendChild(el("li", {
+          text: it.label,
+          style: "padding:4px 6px;cursor:pointer;" + (i === sel ? "background:var(--navy,#000080);color:#fff" : ""),
+          onclick: () => { closeModal(); it.run(); },
+        }));
+      });
+      if (!items.length) listEl.appendChild(el("li", { class: "empty-hint", text: "No matches" }));
+    }
+    input.addEventListener("input", () => { sel = 0; draw(); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(items.length - 1, sel + 1); draw(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); draw(); }
+      else if (e.key === "Enter") { e.preventDefault(); const it = items[sel]; if (it) { closeModal(); it.run(); } }
+    });
+
+    openModal("Command Palette", [input, listEl]);
+    draw();
+    input.focus();
+  }
+
+  // ---- Diff: compare two projects ------------------------------------------
+  function diffModal() {
+    const projects = state.data.projects || [];
+    if (projects.length < 2) {
+      status("Need at least 2 projects to compare.");
+      return;
+    }
+    const selA = el("select", { style: "font-family:inherit" });
+    const selB = el("select", { style: "font-family:inherit" });
+    projects.forEach((p) => {
+      selA.appendChild(el("option", { value: p.id, text: p.name }));
+      selB.appendChild(el("option", { value: p.id, text: p.name }));
+    });
+    selA.value = (selectedProject() || projects[0]).id;
+    selB.value = (projects.find((p) => p.id !== selA.value) || projects[1]).id;
+    let reveal = false;
+    const result = el("div", { style: "max-height:230px;overflow:auto;margin-top:6px" });
+    const proj = (id) => projects.find((p) => p.id === id);
+    const shownVal = (val, key) => (reveal ? val : looksSensitiveKey(key) ? "••••" : val);
+
+    function renderDiff() {
+      const a = proj(selA.value), b = proj(selB.value);
+      result.innerHTML = "";
+      if (!a || !b || a.id === b.id) {
+        result.appendChild(el("p", { class: "hint", text: "Pick two different projects." }));
+        return;
+      }
+      const d = DEV.diffVarSets(a.variables, b.variables);
+      const section = (title, rows) => {
+        result.appendChild(el("div", { class: "panel-head" }, [el("span", { text: `${title} (${rows.length})` })]));
+        if (!rows.length) result.appendChild(el("p", { class: "empty-hint", text: "—" }));
+        else rows.forEach((r) => result.appendChild(r));
+      };
+      section("Only in " + a.name, d.onlyA.map((k) => {
+        const av = a.variables.find((v) => v.key === k);
+        return el("div", { class: "var-row" }, [
+          el("span", { class: "var-key", text: k }),
+          el("span", { class: "var-val", text: shownVal(av.value, k), style: "opacity:.7" }),
+          el("button", { class: "mini-btn", title: "Copy to " + b.name, text: "→", onclick: async () => {
+            if (!canAddVariable(b)) return proLockedModal("locked_vars");
+            const ok = await run(window.api.upsertVariable(b.id, k, av.value, null, looksSensitiveKey(k)));
+            if (ok) { status(`Copied ${k} → ${b.name}`); renderDiff(); }
+          } }),
+        ]);
+      }));
+      section("Only in " + b.name, d.onlyB.map((k) => {
+        const bv = b.variables.find((v) => v.key === k);
+        return el("div", { class: "var-row" }, [
+          el("span", { class: "var-key", text: k }),
+          el("span", { class: "var-val", text: shownVal(bv.value, k), style: "opacity:.7" }),
+          el("button", { class: "mini-btn", title: "Copy to " + a.name, text: "←", onclick: async () => {
+            if (!canAddVariable(a)) return proLockedModal("locked_vars");
+            const ok = await run(window.api.upsertVariable(a.id, k, bv.value, null, looksSensitiveKey(k)));
+            if (ok) { status(`Copied ${k} → ${a.name}`); renderDiff(); }
+          } }),
+        ]);
+      }));
+      section("Different values", d.changed.map((c) => el("div", { class: "var-row" }, [
+        el("span", { class: "var-key", text: c.key }),
+        el("span", { class: "var-val", text: `${shownVal(c.aValue, c.key)}  ≠  ${shownVal(c.bValue, c.key)}`, style: "opacity:.7;font-size:10px" }),
+      ])));
+      section("Identical", d.same.map((k) => el("div", { class: "var-row" }, [el("span", { class: "var-key", text: k })])));
+    }
+
+    const revealBtn = el("button", { class: "btn", text: "Show values", onclick: () => {
+      const a = proj(selA.value), b = proj(selB.value);
+      const prod = /prod/i.test((a && a.name) || "") || /prod/i.test((b && b.name) || "");
+      if (!reveal && prod && !confirm("One of these looks like production. Reveal secret values?")) return;
+      reveal = !reveal;
+      revealBtn.textContent = reveal ? "Hide values" : "Show values";
+      renderDiff();
+    } });
+    [selA, selB].forEach((s) => s.addEventListener("change", renderDiff));
+
+    openModal("Compare projects", [
+      el("div", { class: "field" }, [el("label", { text: "A" }), selA]),
+      el("div", { class: "field" }, [el("label", { text: "B" }), selB]),
+      el("div", { class: "modal-actions", style: "margin:4px 0" }, [revealBtn]),
+      result,
+      el("div", { class: "modal-actions" }, [el("button", { class: "btn", text: "Close", onclick: closeModal })]),
+    ]);
+    renderDiff();
   }
 
   // ---- Mutations ------------------------------------------------------------
@@ -524,22 +809,25 @@
     nameInput.focus();
   }
 
-  function editVarModal(project, existing) {
+  // `draft` carries unsaved field values when the editor is re-opened after the
+  // Secret Generator (the single modal host can't nest dialogs).
+  function editVarModal(project, existing, draft) {
+    const d = draft || {};
     const keyInput = el("input", {
       type: "text",
-      value: existing ? existing.key : "",
+      value: d.key != null ? d.key : existing ? existing.key : "",
       placeholder: "DATABASE_URL",
     });
     if (existing) keyInput.setAttribute("readonly", "readonly");
     const valInput = el("textarea", { rows: "3", placeholder: "value" });
-    valInput.value = existing ? existing.value : "";
+    valInput.value = d.value != null ? d.value : existing ? existing.value : "";
     const commentInput = el("input", {
       type: "text",
-      value: existing && existing.comment ? existing.comment : "",
+      value: d.comment != null ? d.comment : existing && existing.comment ? existing.comment : "",
       placeholder: "optional comment",
     });
     const maskCheck = el("input", { type: "checkbox" });
-    maskCheck.checked = existing ? existing.isMasked : true;
+    maskCheck.checked = d.mask != null ? d.mask : existing ? existing.isMasked : true;
     const err = el("p", { class: "error-text" });
 
     const save = async () => {
@@ -558,7 +846,23 @@
 
     openModal(existing ? "Edit Variable" : "New Variable", [
       el("div", { class: "field" }, [el("label", { text: "Key" }), keyInput]),
-      el("div", { class: "field" }, [el("label", { text: "Value" }), valInput]),
+      el("div", { class: "field" }, [
+        el("label", {}, [
+          document.createTextNode("Value  "),
+          el("button", {
+            type: "button",
+            class: "mini-btn",
+            title: "Generate a secret",
+            text: "🔑 Generate",
+            style: "font-size:10px",
+            onclick: () =>
+              secretGenModal((val) =>
+                editVarModal(project, existing, { key: keyInput.value, value: val, comment: commentInput.value, mask: maskCheck.checked })
+              ),
+          }),
+        ]),
+        valInput,
+      ]),
       el("div", { class: "field" }, [el("label", { text: "Comment" }), commentInput]),
       el("label", { class: "checkbox-row" }, [maskCheck, document.createTextNode(" Mask on screen (••••)")]),
       err,
@@ -803,8 +1107,10 @@
       }
       editVarModal(p, null);
     });
-    $("#copy-env-btn").addEventListener("click", copyEnv);
-    $("#import-env-btn").addEventListener("click", importEnvModal);
+    $("#copy-env-btn").addEventListener("click", exportModal);
+    $("#import-env-btn").addEventListener("click", smartImportModal);
+    $("#diff-btn").addEventListener("click", diffModal);
+    $("#cmd-btn").addEventListener("click", commandPalette);
     $("#mask-toggle-btn").addEventListener("click", () => {
       state.revealAll = !state.revealAll;
       $("#mask-toggle-btn").classList.toggle("active", state.revealAll);
@@ -819,8 +1125,20 @@
       if (e.target.id === "modal-overlay") closeModal();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeModal();
-      else trapFocus(e);
+      if (e.key === "Escape") {
+        closeModal();
+        return;
+      }
+      // Command palette: Ctrl/Cmd+K anywhere, or "/" when not typing in a field.
+      const modalOpen = !$("#modal-overlay").classList.contains("hidden");
+      const typing = /^(input|textarea|select)$/i.test((e.target.tagName || ""));
+      if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing && !modalOpen)) {
+        if (state.locked || !state.data) return;
+        e.preventDefault();
+        commandPalette();
+        return;
+      }
+      trapFocus(e);
     });
 
     // Gate on the vault lock state before loading any data.
