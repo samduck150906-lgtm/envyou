@@ -550,10 +550,10 @@ footer.foot{
           <a href="#pricing" class="btn big cta"><span data-i18n="cta_pro">Pro 보기 — $59 평생</span></a>
         </div>
         <div class="trust">
-          <span class="tag">Zero Cloud</span>
+          <span class="tag" data-i18n="trust_cloud">Zero Cloud</span>
           <span class="tag">AES-256-GCM</span>
-          <span class="tag">Claude MCP Native</span>
-          <span class="tag ghost">No Subscription</span>
+          <span class="tag" data-i18n="trust_mcp">Claude MCP Native</span>
+          <span class="tag ghost" data-i18n="trust_nosub">No Subscription</span>
         </div>
       </div>
 
@@ -588,24 +588,24 @@ footer.foot{
     <!-- Features -->
     <section class="panel alt" id="features">
       <div class="sec-title"><span class="chip">01</span><h2 data-i18n="sec_why">왜 envyou 인가</h2></div>
-      <p class="sec-sub">무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.</p>
+      <p class="sec-sub" data-i18n="feat_sub">무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.</p>
       <div class="features">
         <div class="feat raised">
           <div class="icon">🪶</div>
-          <h3>극한의 가벼움</h3>
-          <p>Electron이 아닌 Tauri(Rust) 기반. 수 MB 메모리만 쓰는 플로팅 데스크톱 앱이 전역 단축키로 즉시 떠오릅니다.</p>
+          <h3 data-i18n="feat1_t">극한의 가벼움</h3>
+          <p data-i18n="feat1_p">Electron이 아닌 Tauri(Rust) 기반. 수 MB 메모리만 쓰는 플로팅 데스크톱 앱이 전역 단축키로 즉시 떠오릅니다.</p>
           <span class="kbd">⌨ Ctrl + Shift + E</span>
         </div>
         <div class="feat raised">
           <div class="icon">🔒</div>
-          <h3>완벽한 프라이버시</h3>
-          <p>API 키·DB 패스워드는 어떤 서버로도 전송되지 않습니다. 단일 파일에 AES-256-GCM으로 암호화되어 오직 로컬에만 저장됩니다.</p>
+          <h3 data-i18n="feat2_t">완벽한 프라이버시</h3>
+          <p data-i18n="feat2_p">API 키·DB 패스워드는 어떤 서버로도 전송되지 않습니다. 단일 파일에 AES-256-GCM으로 암호화되어 오직 로컬에만 저장됩니다.</p>
           <span class="kbd">🚫 No Cloud Sync</span>
         </div>
         <div class="feat raised">
           <div class="icon">🤖</div>
-          <h3>Claude MCP 연동</h3>
-          <p>Model Context Protocol로 Claude Desktop과 연결. AI가 환경변수를 직접 읽고 쓰되, 매 호출마다 사용자 물리 승인 팝업이 뜹니다.</p>
+          <h3 data-i18n="feat3_t">Claude MCP 연동</h3>
+          <p data-i18n="feat3_p">Model Context Protocol로 Claude Desktop과 연결. AI가 환경변수를 직접 읽고 쓰되, 매 호출마다 사용자 물리 승인 팝업이 뜹니다.</p>
           <span class="kbd">$ envyou --mcp</span>
         </div>
       </div>
@@ -757,37 +757,37 @@ footer.foot{
       <div class="faq">
 
         <details open>
-          <summary>Is envyou free?</summary>
+          <summary data-i18n="faq_q1">Is envyou free?</summary>
           <div class="a">Yes. envyou has a free tier that includes up to <b>3 projects</b>, <b>10 variables per project</b>, the global hotkey, always-on-top, and local AES-256-GCM encryption. <b>Pro</b> unlocks unlimited projects and variables, custom themes, and the Claude Desktop MCP integration — a one-time <b>$59</b> for a <b>Lifetime</b> license (no subscription).</div>
         </details>
 
         <details>
-          <summary>Does envyou send my secrets to the cloud?</summary>
+          <summary data-i18n="faq_q2">Does envyou send my secrets to the cloud?</summary>
           <div class="a">No. envyou is <b>local-first</b>. All of your projects, variables, and settings live in a single AES-256-GCM encrypted file on your own machine. Nothing is ever sent off-device — there is no cloud sync, no account, and no server that receives your secrets.</div>
         </details>
 
         <details>
-          <summary>How does the Claude Desktop MCP integration work?</summary>
+          <summary data-i18n="faq_q3">How does the Claude Desktop MCP integration work?</summary>
           <div class="a">envyou can run as a <b>Model Context Protocol (MCP)</b> server. One click writes an <code>envyou</code> entry into your <code>claude_desktop_config.json</code>, and Claude Desktop then launches <code>envyou --mcp</code>, which speaks JSON-RPC 2.0 MCP over STDIO and exposes <code>list_projects</code>, <code>read_env_variables</code>, and <code>write_env_variable</code>. Every read or write triggers a <b>native approval dialog</b> on your machine — secrets are only released after you click <b>Yes</b>.</div>
         </details>
 
         <details>
-          <summary>How is envyou different from dotenv, 1Password, Doppler, or Infisical?</summary>
+          <summary data-i18n="faq_q4">How is envyou different from dotenv, 1Password, Doppler, or Infisical?</summary>
           <div class="a"><code>dotenv</code> is a library and a plaintext <code>.env</code> file format, not an encrypted manager with a UI. <b>1Password</b>, <b>Doppler</b>, and <b>Infisical</b> are excellent cloud-based or team-oriented secrets platforms that typically sync secrets to a server and run on a subscription. <b>envyou</b> is a single-developer, local-first desktop app: secrets stay encrypted on your machine, there is no cloud sync, pricing is a one-time $59 lifetime (no subscription), and it integrates directly with Claude Desktop over MCP. See the <a href="#compare">comparison table</a> for details.</div>
         </details>
 
         <details>
-          <summary>What encryption does envyou use?</summary>
+          <summary data-i18n="faq_q5">What encryption does envyou use?</summary>
           <div class="a">envyou stores all state in a single file encrypted with <b>AES-256-GCM</b>. In the current build the encryption key is derived from your machine id, which binds the encrypted state to your device. This is an MVP key-derivation scheme — not a claim of unbreakable or "bank-grade" security — and the storage format is designed so a future build can add a user master password with a stronger key-derivation function without changing the file format.</div>
         </details>
 
         <details>
-          <summary>Which platforms does envyou support?</summary>
+          <summary data-i18n="faq_q6">Which platforms does envyou support?</summary>
           <div class="a">envyou is built on <b>Tauri (Rust)</b> and targets <b>Windows, macOS, and Linux</b> desktops. Because it uses Tauri instead of Electron, the app is only a few megabytes and uses very little memory.</div>
         </details>
 
         <details>
-          <summary>Does envyou require a subscription?</summary>
+          <summary data-i18n="faq_q7">Does envyou require a subscription?</summary>
           <div class="a">The free tier is free forever. Pro is a one-time <b>$59 Lifetime</b> license with no recurring charges — there is no subscription.</div>
         </details>
 
@@ -819,7 +819,7 @@ footer.foot{
     </div>
     <div class="copyright">
       <span>© <span id="year"></span> ETERNALSIX. All rights reserved.</span>
-      <span>Made with Tauri + Rust 🦀 · Local-First Forever</span>
+      <span data-i18n="foot_tag">Made with Tauri + Rust 🦀 · Local-First Forever</span>
     </div>
   </footer>
 
@@ -975,6 +975,72 @@ footer.foot{
       sec_faq:"अक्सर पूछे जाने वाले प्रश्न", pro_buy:"★ आजीवन — $59"
     }
   };
+  var I18N2 = {
+    en: {
+      feat_sub:"For developers tired of heavy, scattered workflows — we focused on the three things that matter.",
+      feat1_t:"Ultra lightweight", feat1_p:"Built on Tauri (Rust), not Electron. A floating desktop app that uses only a few MB of memory and pops up instantly with a global hotkey.",
+      feat2_t:"Total privacy", feat2_p:"API keys and DB passwords are never sent to any server. Everything is stored only on your machine, encrypted with AES-256-GCM in a single file.",
+      feat3_t:"Claude MCP integration", feat3_p:"Connect to Claude Desktop over the Model Context Protocol. AI can read and write your variables directly — but every call pops a physical approval dialog you must accept.",
+      trust_cloud:"Zero Cloud", trust_mcp:"Claude MCP Native", trust_nosub:"No Subscription",
+      faq_q1:"Is envyou free?", faq_q2:"Does envyou send my secrets to the cloud?", faq_q3:"How does the Claude Desktop MCP integration work?", faq_q4:"How is envyou different from dotenv, 1Password, Doppler, or Infisical?", faq_q5:"What encryption does envyou use?", faq_q6:"Which platforms does envyou support?", faq_q7:"Does envyou require a subscription?",
+      foot_tag:"Made with Tauri + Rust 🦀 · Local-First Forever"
+    },
+    ko: {
+      feat_sub:"무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.",
+      feat1_t:"극한의 가벼움", feat1_p:"Electron이 아닌 Tauri(Rust) 기반. 수 MB 메모리만 쓰는 플로팅 데스크톱 앱이 전역 단축키로 즉시 떠오릅니다.",
+      feat2_t:"완벽한 프라이버시", feat2_p:"API 키·DB 패스워드는 어떤 서버로도 전송되지 않습니다. 단일 파일에 AES-256-GCM으로 암호화되어 오직 로컬에만 저장됩니다.",
+      feat3_t:"Claude MCP 연동", feat3_p:"Model Context Protocol로 Claude Desktop과 연결. AI가 환경변수를 직접 읽고 쓰되, 매 호출마다 사용자 물리 승인 팝업이 뜹니다.",
+      trust_cloud:"클라우드 없음", trust_mcp:"Claude MCP 네이티브", trust_nosub:"구독 없음",
+      faq_q1:"envyou는 무료인가요?", faq_q2:"envyou가 내 시크릿을 클라우드로 보내나요?", faq_q3:"Claude Desktop MCP 연동은 어떻게 작동하나요?", faq_q4:"envyou는 dotenv·1Password·Doppler·Infisical과 어떻게 다른가요?", faq_q5:"envyou는 어떤 암호화를 쓰나요?", faq_q6:"envyou는 어떤 플랫폼을 지원하나요?", faq_q7:"envyou는 구독이 필요한가요?",
+      foot_tag:"Tauri + Rust로 제작 🦀 · 영원히 로컬 우선"
+    },
+    ja: {
+      feat_sub:"重くて散らかったワークフローに疲れた開発者のために、本当に必要な3つに絞りました。",
+      feat1_t:"極限の軽さ", feat1_p:"Electron ではなく Tauri(Rust)ベース。数MBのメモリしか使わないフローティングアプリが、グローバルショートカットで瞬時に表示。",
+      feat2_t:"完全なプライバシー", feat2_p:"APIキーやDBパスワードはどのサーバーにも送信されません。単一ファイルに AES-256-GCM で暗号化され、ローカルにのみ保存されます。",
+      feat3_t:"Claude MCP 連携", feat3_p:"Model Context Protocol で Claude Desktop と接続。AIが環境変数を直接読み書きしますが、呼び出しごとに承認ダイアログが表示されます。",
+      trust_cloud:"クラウド不使用", trust_mcp:"Claude MCP ネイティブ", trust_nosub:"サブスクなし",
+      faq_q1:"envyou は無料ですか？", faq_q2:"envyou はシークレットをクラウドに送りますか？", faq_q3:"Claude Desktop の MCP 連携はどう動きますか？", faq_q4:"envyou は dotenv・1Password・Doppler・Infisical と何が違いますか？", faq_q5:"envyou はどんな暗号化を使いますか？", faq_q6:"envyou はどのプラットフォームに対応していますか？", faq_q7:"envyou はサブスクが必要ですか？",
+      foot_tag:"Tauri + Rust 製 🦀 · ずっとローカルファースト"
+    },
+    zh: {
+      feat_sub:"为厌倦了臃肿、分散工作流的开发者，我们只专注于最重要的三件事。",
+      feat1_t:"极致轻量", feat1_p:"基于 Tauri（Rust）而非 Electron。仅占用几 MB 内存的悬浮桌面应用，用全局快捷键即刻唤出。",
+      feat2_t:"彻底的隐私", feat2_p:"API 密钥和数据库密码绝不发送到任何服务器。所有内容仅保存在你的设备上，用 AES-256-GCM 加密在单个文件中。",
+      feat3_t:"Claude MCP 集成", feat3_p:"通过 Model Context Protocol 连接 Claude Desktop。AI 可直接读写你的变量——但每次调用都会弹出需你确认的授权对话框。",
+      trust_cloud:"零云端", trust_mcp:"原生 Claude MCP", trust_nosub:"无订阅",
+      faq_q1:"envyou 免费吗？", faq_q2:"envyou 会把我的密钥发送到云端吗？", faq_q3:"Claude Desktop 的 MCP 集成如何工作？", faq_q4:"envyou 与 dotenv、1Password、Doppler、Infisical 有何不同？", faq_q5:"envyou 使用哪种加密？", faq_q6:"envyou 支持哪些平台？", faq_q7:"envyou 需要订阅吗？",
+      foot_tag:"使用 Tauri + Rust 打造 🦀 · 永远本地优先"
+    },
+    th: {
+      feat_sub:"สำหรับนักพัฒนาที่เบื่อเวิร์กโฟลว์ที่หนักและกระจัดกระจาย เราโฟกัสแค่สามสิ่งที่สำคัญ",
+      feat1_t:"เบาสุดขีด", feat1_p:"สร้างด้วย Tauri (Rust) ไม่ใช่ Electron แอปเดสก์ท็อปแบบลอยที่ใช้แรมเพียงไม่กี่ MB เรียกขึ้นมาทันทีด้วยคีย์ลัดส่วนกลาง",
+      feat2_t:"ความเป็นส่วนตัวเต็มร้อย", feat2_p:"คีย์ API และรหัสผ่านฐานข้อมูลจะไม่ถูกส่งไปเซิร์ฟเวอร์ใด ๆ ทุกอย่างเก็บไว้บนเครื่องของคุณเท่านั้น เข้ารหัสด้วย AES-256-GCM ในไฟล์เดียว",
+      feat3_t:"เชื่อมต่อ Claude MCP", feat3_p:"เชื่อมต่อกับ Claude Desktop ผ่าน Model Context Protocol AI อ่านและเขียนตัวแปรได้โดยตรง แต่ทุกครั้งจะมีหน้าต่างขออนุญาตที่คุณต้องกดยืนยัน",
+      trust_cloud:"ไม่มีคลาวด์", trust_mcp:"รองรับ Claude MCP", trust_nosub:"ไม่มีค่าสมาชิก",
+      faq_q1:"envyou ฟรีไหม?", faq_q2:"envyou ส่งข้อมูลลับของฉันขึ้นคลาวด์ไหม?", faq_q3:"การเชื่อมต่อ MCP กับ Claude Desktop ทำงานอย่างไร?", faq_q4:"envyou ต่างจาก dotenv, 1Password, Doppler หรือ Infisical อย่างไร?", faq_q5:"envyou ใช้การเข้ารหัสแบบใด?", faq_q6:"envyou รองรับแพลตฟอร์มใดบ้าง?", faq_q7:"envyou ต้องสมัครสมาชิกไหม?",
+      foot_tag:"สร้างด้วย Tauri + Rust 🦀 · โลคัลก่อนเสมอ"
+    },
+    vi: {
+      feat_sub:"Dành cho lập trình viên đã chán quy trình nặng nề, rời rạc — chúng tôi tập trung vào ba điều quan trọng nhất.",
+      feat1_t:"Siêu nhẹ", feat1_p:"Xây trên Tauri (Rust), không phải Electron. Ứng dụng nổi chỉ dùng vài MB bộ nhớ, bật lên tức thì bằng phím tắt toàn cục.",
+      feat2_t:"Riêng tư tuyệt đối", feat2_p:"Khóa API và mật khẩu DB không bao giờ được gửi tới máy chủ nào. Mọi thứ chỉ lưu trên máy bạn, mã hóa AES-256-GCM trong một tệp duy nhất.",
+      feat3_t:"Tích hợp Claude MCP", feat3_p:"Kết nối Claude Desktop qua Model Context Protocol. AI có thể đọc và ghi biến trực tiếp — nhưng mỗi lần gọi đều hiện hộp thoại phê duyệt bạn phải chấp nhận.",
+      trust_cloud:"Không cloud", trust_mcp:"Claude MCP gốc", trust_nosub:"Không thuê bao",
+      faq_q1:"envyou có miễn phí không?", faq_q2:"envyou có gửi bí mật của tôi lên cloud không?", faq_q3:"Tích hợp MCP với Claude Desktop hoạt động thế nào?", faq_q4:"envyou khác gì với dotenv, 1Password, Doppler hay Infisical?", faq_q5:"envyou dùng mã hóa gì?", faq_q6:"envyou hỗ trợ nền tảng nào?", faq_q7:"envyou có yêu cầu thuê bao không?",
+      foot_tag:"Tạo bằng Tauri + Rust 🦀 · Luôn ưu tiên cục bộ"
+    },
+    hi: {
+      feat_sub:"भारी और बिखरे वर्कफ़्लो से थके डेवलपर्स के लिए — हमने केवल तीन ज़रूरी चीज़ों पर ध्यान दिया।",
+      feat1_t:"बेहद हल्का", feat1_p:"Electron नहीं, Tauri (Rust) पर बना। कुछ ही MB मेमोरी वाला फ़्लोटिंग डेस्कटॉप ऐप, ग्लोबल हॉटकी से तुरंत खुलता है।",
+      feat2_t:"पूर्ण गोपनीयता", feat2_p:"API कुंजियाँ और DB पासवर्ड कभी किसी सर्वर पर नहीं भेजे जाते। सब कुछ केवल आपकी मशीन पर, एक ही फ़ाइल में AES-256-GCM से एन्क्रिप्टेड रहता है।",
+      feat3_t:"Claude MCP एकीकरण", feat3_p:"Model Context Protocol के ज़रिए Claude Desktop से जुड़ें। AI आपके वेरिएबल सीधे पढ़/लिख सकता है — पर हर कॉल पर एक अनुमति डायलॉग आता है जिसे आपको स्वीकारना होता है।",
+      trust_cloud:"कोई क्लाउड नहीं", trust_mcp:"Claude MCP नेटिव", trust_nosub:"कोई सदस्यता नहीं",
+      faq_q1:"क्या envyou मुफ़्त है?", faq_q2:"क्या envyou मेरे सीक्रेट क्लाउड पर भेजता है?", faq_q3:"Claude Desktop MCP एकीकरण कैसे काम करता है?", faq_q4:"envyou dotenv, 1Password, Doppler या Infisical से कैसे अलग है?", faq_q5:"envyou कौन-सा एन्क्रिप्शन उपयोग करता है?", faq_q6:"envyou किन प्लेटफ़ॉर्म का समर्थन करता है?", faq_q7:"क्या envyou के लिए सदस्यता ज़रूरी है?",
+      foot_tag:"Tauri + Rust से बना 🦀 · हमेशा लोकल-फ़र्स्ट"
+    }
+  };
+  for (var _L in I18N2){ for (var _K in I18N2[_L]){ (I18N[_L]=I18N[_L]||{})[_K]=I18N2[_L][_K]; } }
   function applyLang(l){
     var d = I18N[l] || I18N.en;
     $$("[data-i18n]").forEach(function(n){
