@@ -415,13 +415,14 @@
       el("hr"),
       el("div", { class: "field" }, [
         el("label", { text: "Claude Desktop (MCP)" }),
+        el("p", { class: "hint", text: "Let Claude read & write these variables — but only when you approve each request. One click adds envyou to claude_desktop_config.json (your other MCP servers are kept)." }),
         el("button", {
           class: "btn",
           text: "Link with Claude Desktop »",
           onclick: async () => {
             try {
               const where = await window.api.linkClaudeDesktop();
-              claudeMsg.textContent = "Linked: " + where;
+              claudeMsg.textContent = "✔ Added to " + where + " — restart Claude Desktop, then ask it to \"list my envyou projects\".";
             } catch (e) {
               claudeMsg.textContent = "✕ " + e;
             }

@@ -5,6 +5,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag to create + release (e.g. v0.1.0)"
+        required: true
+        default: "v0.1.0"
 
 permissions:
   contents: write # tauri-action needs this to create the release
@@ -61,8 +67,8 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "envyou ${{ github.ref_name }}"
+          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          releaseName: "envyou ${{ github.event.inputs.version || github.ref_name }}"
           releaseBody: "Download the installer for your OS below. See the README for install and Claude Desktop / MCP setup."
           releaseDraft: true
           prerelease: false
