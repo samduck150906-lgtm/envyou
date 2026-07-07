@@ -48,13 +48,23 @@
       no_vars:"No variables. Click + to add one.", upgrade_title:"Upgrade to Pro — $59 lifetime",
       upgrade_feats:"Unlimited projects & variables, MCP server, custom env colors.",
       upgrade_buy:"Buy at envyou.dev — your license key arrives by email. Offline activation.",
-      license_key:"License key", activate:"Activate", cancel:"Cancel" },
+      license_key:"License key", activate:"Activate", cancel:"Cancel",
+      copy_env:"Copy .env", import_env:"Import .env",
+      import_title:"Import from .env", import_hint:"Paste KEY=value lines (a .env file). Existing keys are updated; # comments are ignored.", import_btn:"Import",
+      pro_only:"Pro feature", unlock_pro:"Unlock with Pro", lifetime_cta:"One-time $59 — yours forever. No subscription, no renewals.",
+      locked_projects:"Free tier is capped at 3 projects.", locked_vars:"Free tier is capped at 10 variables per project.",
+      locked_color:"Custom env colors are a Pro feature.", locked_mcp:"Claude Desktop (MCP) linking is a Pro feature." },
     ko: { free:"무료", upgrade:"Pro로 업그레이드 »", projects:"프로젝트", variables:"변수",
       select_project:"프로젝트를 선택하거나 만드세요.", no_projects:"아직 프로젝트가 없습니다 — +를 눌러 추가하세요.",
       no_vars:"변수가 없습니다. +를 눌러 추가하세요.", upgrade_title:"Pro 업그레이드 — $59 평생",
       upgrade_feats:"무제한 프로젝트·변수, MCP 서버, 커스텀 컬러.",
       upgrade_buy:"envyou.dev에서 구매 — 라이선스 키는 이메일로. 오프라인 인증.",
-      license_key:"라이선스 키", activate:"활성화", cancel:"취소" },
+      license_key:"라이선스 키", activate:"활성화", cancel:"취소",
+      copy_env:".env 복사", import_env:".env 가져오기",
+      import_title:".env 가져오기", import_hint:"KEY=value 형식(.env)을 붙여넣으세요. 기존 키는 업데이트되고, # 주석은 무시됩니다.", import_btn:"가져오기",
+      pro_only:"Pro 전용 기능", unlock_pro:"Pro로 잠금 해제", lifetime_cta:"한 번 결제 $59 — 평생 소장. 구독·갱신 없음.",
+      locked_projects:"무료 버전은 프로젝트 3개까지입니다.", locked_vars:"무료 버전은 프로젝트당 변수 10개까지입니다.",
+      locked_color:"커스텀 환경 컬러는 Pro 전용입니다.", locked_mcp:"Claude Desktop(MCP) 연동은 Pro 전용입니다." },
     ja: { free:"無料", upgrade:"Pro にアップグレード »", projects:"プロジェクト", variables:"変数",
       select_project:"プロジェクトを選択または作成してください。", no_projects:"プロジェクトがありません — + で追加。",
       no_vars:"変数がありません。+ で追加。", upgrade_title:"Pro にアップグレード — $59 買い切り",
@@ -133,6 +143,27 @@
     return state.data?.projects.find((p) => p.id === state.selectedProjectId) || null;
   }
 
+  // Free-tier gates, mirrored from the backend policy so the UI can show a
+  // "Pro" lock *before* a rejected mutation. These are UX nudges only — the
+  // real cap is still enforced in envyou-core.
+  function isPro() {
+    return !!(state.data && state.data.license && state.data.license.isPro);
+  }
+  function canAddProject() {
+    return isPro() || (state.data && state.data.projects.length < FREE_MAX_PROJECTS);
+  }
+  function canAddVariable(p) {
+    return isPro() || (!!p && p.variables.length < FREE_MAX_VARS);
+  }
+  // A small inline "PRO" badge for locked features shown to free users.
+  function proBadge() {
+    return el("span", {
+      text: "PRO",
+      title: t("pro_only"),
+      style: "margin-left:6px;font-size:9px;font-weight:bold;padding:1px 4px;border:1px solid #000080;color:#000080;letter-spacing:.5px",
+    });
+  }
+
   // ---- Render ---------------------------------------------------------------
   function render() {
     renderTier();
@@ -154,7 +185,10 @@
     const pro = state.data.license.isPro;
     // Free-tier usage counter on the panel head (e.g. "PROJECTS 2/3").
     const head = $("#projects-count");
-    if (head) head.textContent = pro ? "" : `${state.data.projects.length}/${FREE_MAX_PROJECTS}`;
+    if (head) {
+      const atCap = state.data.projects.length >= FREE_MAX_PROJECTS;
+      head.textContent = pro ? "" : `${state.data.projects.length}/${FREE_MAX_PROJECTS}` + (atCap ? " 🔒" : "");
+    }
 
     state.data.projects.forEach((p) => {
       const li = el("li", {
@@ -202,7 +236,10 @@
 
     // Free-tier variable counter (e.g. "8/10") on the panel head.
     const vc = $("#vars-count");
-    if (vc) vc.textContent = state.data.license.isPro ? "" : `${p.variables.length}/${FREE_MAX_VARS}`;
+    if (vc) {
+      const atCap = p.variables.length >= FREE_MAX_VARS;
+      vc.textContent = state.data.license.isPro ? "" : `${p.variables.length}/${FREE_MAX_VARS}` + (atCap ? " 🔒" : "");
+    }
 
     const maskGlobal = state.data.settings.maskSensitiveData && !state.revealAll;
     p.variables.forEach((v) => {
@@ -221,6 +258,7 @@
           onkeydown: onActivate(() => copyValue(v)),
         }),
         el("span", { class: "var-actions" }, [
+          el("button", { class: "mini-btn", title: "Copy value", "aria-label": `Copy ${v.key}`, text: "⧉", onclick: () => copyValue(v) }),
           el("button", { class: "mini-btn", title: "Edit", "aria-label": `Edit ${v.key}`, text: "✎", onclick: () => editVarModal(p, v) }),
           el("button", {
             class: "mini-btn",
@@ -242,6 +280,86 @@
     } catch {
       status("Copy failed (clipboard unavailable)");
     }
+  }
+
+  // Copy the whole project as a ready-to-paste .env block (KEY=value lines).
+  async function copyEnv() {
+    const p = selectedProject();
+    if (!p || !p.variables.length) {
+      status("No variables to copy.");
+      return;
+    }
+    const body = p.variables.map((v) => `${v.key}=${v.value}`).join("\n") + "\n";
+    try {
+      await navigator.clipboard.writeText(body);
+      status(`Copied ${p.variables.length} variables as .env`);
+    } catch {
+      status("Copy failed (clipboard unavailable)");
+    }
+  }
+
+  // Paste a .env blob and bulk-upsert its KEY=value lines. Respects the
+  // free-tier variable cap: brand-new keys past the cap are skipped and the
+  // Pro upsell is shown.
+  function importEnvModal() {
+    const p = selectedProject();
+    if (!p) {
+      status("Create or select a project first.");
+      return;
+    }
+    const ta = el("textarea", { rows: "8", placeholder: "DATABASE_URL=postgres://…\nPORT=8080\n# comments are ignored" });
+    const err = el("p", { class: "error-text" });
+
+    const doImport = async () => {
+      const pairs = [];
+      ta.value.split(/\r?\n/).forEach((raw) => {
+        let line = raw.trim();
+        if (!line || line.startsWith("#")) return;
+        if (/^export\s+/i.test(line)) line = line.replace(/^export\s+/i, "");
+        const eq = line.indexOf("=");
+        if (eq <= 0) return;
+        const key = line.slice(0, eq).trim();
+        let val = line.slice(eq + 1).trim();
+        if (val.length >= 2 && ((val[0] === '"' && val.endsWith('"')) || (val[0] === "'" && val.endsWith("'")))) {
+          val = val.slice(1, -1);
+        }
+        if (key) pairs.push([key, val]);
+      });
+      if (!pairs.length) {
+        err.textContent = "No KEY=value lines found.";
+        return;
+      }
+      let added = 0, updated = 0, blocked = 0;
+      for (const [key, val] of pairs) {
+        const proj = selectedProject();
+        if (!proj) break;
+        const exists = proj.variables.some((v) => v.key === key);
+        if (!exists && !canAddVariable(proj)) {
+          blocked++;
+          continue;
+        }
+        const ok = await run(window.api.upsertVariable(proj.id, key, val, null, true));
+        if (ok) exists ? updated++ : added++;
+      }
+      closeModal();
+      if (blocked > 0) {
+        status(`Imported ${added + updated}, ${blocked} blocked by free cap`);
+        proLockedModal("locked_vars");
+      } else {
+        status(`Imported ${added} new, updated ${updated}`);
+      }
+    };
+
+    openModal(t("import_title"), [
+      el("p", { class: "hint", text: t("import_hint") }),
+      el("div", { class: "field" }, [ta]),
+      err,
+      el("div", { class: "modal-actions" }, [
+        el("button", { class: "btn", text: t("cancel"), onclick: closeModal }),
+        el("button", { class: "btn primary", text: t("import_btn"), onclick: doImport }),
+      ]),
+    ]);
+    ta.focus();
   }
 
   // ---- Mutations ------------------------------------------------------------
@@ -317,22 +435,28 @@
     }
   }
 
-  function colorPicker(initial, onPick) {
+  function colorPicker(initial, onPick, locked, onLockedClick) {
     let sel = initial || COLORS[0];
     const wrap = el("div", { class: "color-swatches" });
+    if (locked) wrap.style.opacity = "0.55";
     const render = () => {
       wrap.innerHTML = "";
       COLORS.forEach((col) => {
         const sw = el("div", {
           class: "swatch-pick" + (col === sel ? " sel" : ""),
-          title: col,
+          title: locked ? t("locked_color") : col,
           onclick: () => {
+            if (locked) {
+              if (onLockedClick) onLockedClick();
+              return;
+            }
             sel = col;
             onPick(sel);
             render();
           },
         });
         sw.style.background = col;
+        if (locked) sw.style.cursor = "not-allowed";
         wrap.appendChild(sw);
       });
     };
@@ -342,7 +466,13 @@
 
   function projectModal(existing) {
     const nameInput = el("input", { type: "text", value: existing ? existing.name : "", placeholder: "Project name" });
-    const picker = colorPicker(existing ? existing.colorTag : COLORS[0], () => {});
+    const pro = isPro();
+    const picker = colorPicker(
+      existing ? existing.colorTag : COLORS[0],
+      () => {},
+      !pro,
+      () => proLockedModal("locked_color")
+    );
     const err = el("p", { class: "error-text" });
 
     const save = async () => {
@@ -372,7 +502,7 @@
 
     openModal(existing ? "Edit Project" : "New Project", [
       el("div", { class: "field" }, [el("label", { text: "Name" }), nameInput]),
-      el("div", { class: "field" }, [el("label", { text: "Border color (env tag)" }), picker.node]),
+      el("div", { class: "field" }, [el("label", {}, ["Border color (env tag)", pro ? null : proBadge()]), picker.node]),
       err,
       el("div", { class: "modal-actions" }, [
         existing
@@ -442,6 +572,7 @@
 
   function settingsModal() {
     const s = state.data.settings;
+    const pro = isPro();
     const hotkey = el("input", { type: "text", value: s.globalHotkey });
     const aot = el("input", { type: "checkbox" });
     aot.checked = s.alwaysOnTop;
@@ -479,19 +610,21 @@
       ]),
       el("hr"),
       el("div", { class: "field" }, [
-        el("label", { text: "Claude Desktop (MCP)" }),
+        el("label", {}, ["Claude Desktop (MCP)", pro ? null : proBadge()]),
         el("p", { class: "hint", text: "Let Claude read & write these variables — but only when you approve each request. One click adds envyou to claude_desktop_config.json (your other MCP servers are kept)." }),
         el("button", {
           class: "btn",
-          text: "Link with Claude Desktop »",
-          onclick: async () => {
-            try {
-              const where = await window.api.linkClaudeDesktop();
-              claudeMsg.textContent = "✔ Added to " + where + " — restart Claude Desktop, then ask it to \"list my envyou projects\".";
-            } catch (e) {
-              claudeMsg.textContent = "✕ " + e;
-            }
-          },
+          text: pro ? "Link with Claude Desktop »" : "🔒 Link with Claude Desktop",
+          onclick: pro
+            ? async () => {
+                try {
+                  const where = await window.api.linkClaudeDesktop();
+                  claudeMsg.textContent = "✔ Added to " + where + " — restart Claude Desktop, then ask it to \"list my envyou projects\".";
+                } catch (e) {
+                  claudeMsg.textContent = "✕ " + e;
+                }
+              }
+            : () => proLockedModal("locked_mcp"),
         }),
         claudeMsg,
       ]),
@@ -566,7 +699,13 @@
     pw.focus();
   }
 
-  function upgradeModal() {
+  // Shown when a free user clicks a locked Pro feature. Names the feature, then
+  // drops them straight into the upgrade flow with the lifetime pitch.
+  function proLockedModal(lockNoteKey) {
+    upgradeModal(lockNoteKey);
+  }
+
+  function upgradeModal(lockNoteKey) {
     if (state.data.license.isPro) {
       openModal("Pro License", [
         el("p", { text: "You are on the Pro tier ✦" }),
@@ -582,8 +721,24 @@
       if (ok) closeModal();
       else err.textContent = state.lastError;
     };
+    const buy = () => {
+      const url = "https://envyou.dev/#pricing";
+      try {
+        if (window.api && typeof window.api.openExternal === "function") window.api.openExternal(url);
+        else window.open(url, "_blank");
+      } catch {
+        status("Visit envyou.dev to buy Pro.");
+      }
+    };
     openModal(t("upgrade_title"), [
+      // If a specific locked feature triggered this, name it up top.
+      lockNoteKey ? el("p", { text: "🔒 " + t(lockNoteKey), style: "font-weight:bold;margin:0 0 6px" }) : null,
       el("p", { class: "hint", text: t("upgrade_feats") }),
+      el("p", { text: t("lifetime_cta"), style: "font-weight:bold;margin:6px 0;color:#000080" }),
+      el("div", { class: "modal-actions", style: "margin:8px 0" }, [
+        el("button", { class: "btn primary", text: "★ " + t("unlock_pro") + " — $59", onclick: buy }),
+      ]),
+      el("hr"),
       el("div", { class: "field" }, [el("label", { text: t("license_key") }), keyInput]),
       el("p", { class: "hint", text: t("upgrade_buy") }),
       err,
@@ -629,15 +784,27 @@
     if (langSel) langSel.addEventListener("change", () => setLang(langSel.value));
     setLang(savedLang || (navigator.language || "en").slice(0, 2).toLowerCase());
 
-    $("#add-project-btn").addEventListener("click", () => projectModal(null));
+    $("#add-project-btn").addEventListener("click", () => {
+      if (!canAddProject()) {
+        proLockedModal("locked_projects");
+        return;
+      }
+      projectModal(null);
+    });
     $("#add-var-btn").addEventListener("click", () => {
       const p = selectedProject();
       if (!p) {
         status("Create or select a project first.");
         return;
       }
+      if (!canAddVariable(p)) {
+        proLockedModal("locked_vars");
+        return;
+      }
       editVarModal(p, null);
     });
+    $("#copy-env-btn").addEventListener("click", copyEnv);
+    $("#import-env-btn").addEventListener("click", importEnvModal);
     $("#mask-toggle-btn").addEventListener("click", () => {
       state.revealAll = !state.revealAll;
       $("#mask-toggle-btn").classList.toggle("active", state.revealAll);
