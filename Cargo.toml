@@ -1,5 +1,9 @@
 [workspace]
 members = ["crates/envyou-core", "src-tauri"]
+# The Paddle webhook is a separate deployable service; keep it out of the app
+# workspace so `cargo build --workspace`, CI, and `cargo tauri build` don't pull
+# in its server dependencies.
+exclude = ["payments/paddle-webhook"]
 resolver = "2"
 
 [workspace.package]

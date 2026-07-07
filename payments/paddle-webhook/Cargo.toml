@@ -1,0 +1,20 @@
+[package]
+name = "paddle-webhook"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "envyou Paddle webhook: verifies Paddle Billing events and issues Ed25519-signed Pro licenses, emailed via Resend."
+
+[[bin]]
+name = "paddle-webhook"
+path = "src/main.rs"
+
+[dependencies]
+# Signs licenses with the SAME format the app verifies (issuer feature).
+envyou-core = { path = "../../crates/envyou-core", features = ["issuer"] }
+tiny_http = "0.12"
+ureq = { version = "2", features = ["json"] }
+serde_json = "1"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
