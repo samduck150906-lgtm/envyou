@@ -3,8 +3,9 @@
 
 use std::io::{self, BufReader};
 
+use envyou_core::core::license;
 use envyou_core::core::model::{EnvVariable, ProjectSummary};
-use envyou_core::core::storage::Store;
+use envyou_core::core::storage::{machine_id, Store};
 use envyou_core::mcp::{
     serve_stdio, ApprovalDecision, ApprovalGate, ApprovalRequest, EnvStore, McpServer,
 };
@@ -30,6 +31,11 @@ impl EnvStore for StoreAdapter {
 
     fn write_env_variable(&self, project_id: &str, key: &str, value: &str) -> Result<(), String> {
         let mut state = self.store.load().map_err(|e| e.to_string())?;
+        // Verify Pro from the signed license (not the persisted flag) so the MCP
+        // path enforces the same free-tier cap even if the on-disk `isPro` was
+        // tampered with — identical policy to the GUI's `load()`.
+        state.license.is_pro =
+            license::is_pro_active(state.license.license_key.as_deref(), &machine_id());
         // Updating an existing key is always allowed; only a brand-new key is
         // subject to the free-tier cap. `can_write_variable` is the same policy
         // predicate the GUI path uses, so both entry points stay in lock-step.
@@ -95,8 +101,7 @@ impl ApprovalGate for NativeApprovalGate {
 
 /// Build the server and pump STDIO until EOF.
 pub fn run_stdio() -> io::Result<()> {
-    let store =
-        Store::open_default().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let store = Store::open_default().map_err(|e| io::Error::other(e.to_string()))?;
     let server = McpServer::new(StoreAdapter { store }, NativeApprovalGate);
 
     let stdin = io::stdin();

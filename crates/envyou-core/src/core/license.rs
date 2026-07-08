@@ -52,6 +52,22 @@ pub const PRODUCT: &str = "envyou";
 /// repo.
 pub const LICENSE_PUBLIC_KEY_B64: &str = "nsJ4J+OMAg5kjuvCVNcsMdld5i8A+2ZqPyKTq0sCV6Y=";
 
+/// The exact placeholder value shipped above. While `LICENSE_PUBLIC_KEY_B64`
+/// still equals this, the build is treated as **unconfigured** and every
+/// activation fails closed — regardless of whether the placeholder happens to
+/// decode to a valid Ed25519 point (it does, so we cannot rely on a decode
+/// failure to detect the unconfigured state).
+const UNCONFIGURED_PUBLIC_KEY_B64: &str = "nsJ4J+OMAg5kjuvCVNcsMdld5i8A+2ZqPyKTq0sCV6Y=";
+
+/// Whether this build ships a real (non-placeholder, non-empty) license public
+/// key. The offline `license_tool checkkey` command and the app can surface this
+/// to avoid shipping a build that either rejects every real license or would
+/// accept a forgeable one.
+pub fn is_license_key_configured() -> bool {
+    let k = LICENSE_PUBLIC_KEY_B64.trim();
+    !k.is_empty() && k != UNCONFIGURED_PUBLIC_KEY_B64
+}
+
 /// The signed claims carried by a license token.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LicenseClaims {
@@ -101,13 +117,21 @@ pub fn is_well_formed(license: &str) -> bool {
             .unwrap_or(false)
 }
 
-/// Decode the embedded verification key. Returns an error while the placeholder
-/// is still in place, so production activation fails closed.
+/// Decode the embedded verification key. Fails closed while the shipped
+/// placeholder is still in place (detected by value, not by hoping it fails to
+/// decode — it decodes fine), so production activation is rejected until a real
+/// key is configured.
 fn embedded_verifying_key() -> Result<VerifyingKey> {
+    if !is_license_key_configured() {
+        return Err(Error::License(
+            "license public key is not configured in this build (still the shipped placeholder); \
+             set LICENSE_PUBLIC_KEY_B64 to your production public key"
+                .into(),
+        ));
+    }
     verifying_key_from_b64(LICENSE_PUBLIC_KEY_B64).map_err(|_| {
         Error::License(
-            "license public key is not configured in this build (set LICENSE_PUBLIC_KEY_B64)"
-                .into(),
+            "configured LICENSE_PUBLIC_KEY_B64 is not a valid 32-byte Ed25519 public key".into(),
         )
     })
 }
@@ -194,6 +218,29 @@ pub fn activate(license: &str, hardware_id: &str) -> Result<String> {
 /// Returns `true` only for a currently-valid license.
 pub fn verify(license: &str, hardware_id: &str) -> bool {
     verify_license(license, hardware_id).is_ok()
+}
+
+/// Whether these (already signature-verified) claims grant the Pro tier.
+///
+/// Only Pro plans unlock Pro — a validly-signed token for some other plan
+/// (free, trial, …) must NOT flip the app into Pro. The Paddle webhook issues
+/// `"pro-lifetime"` for the one-time license and `"pro"` for the annual plan.
+pub fn grants_pro(claims: &LicenseClaims) -> bool {
+    matches!(claims.plan.as_str(), "pro" | "pro-lifetime")
+}
+
+/// Whether a stored license token currently entitles this machine to Pro:
+/// signature valid against the configured key, correct product, hardware/expiry
+/// satisfied, **and** a Pro-tier plan. This is the single source of truth the
+/// app should consult on every load instead of trusting a persisted boolean —
+/// so editing the local state file to flip `isPro` grants nothing.
+pub fn is_pro_active(license_key: Option<&str>, hardware_id: &str) -> bool {
+    match license_key {
+        Some(k) if !k.trim().is_empty() => verify_license(k, hardware_id)
+            .map(|claims| grants_pro(&claims))
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 /// Mint a signed license token (`<payload>.<signature>`) from claims and a
@@ -390,11 +437,57 @@ mod tests {
 
     #[test]
     fn build_fails_closed_until_public_key_configured() {
-        // With the placeholder public key in place, the public entry points must
-        // reject everything rather than accept an unverifiable license.
+        // The shipped placeholder must be reported as unconfigured...
+        assert!(
+            !is_license_key_configured(),
+            "the shipped placeholder must count as unconfigured"
+        );
+        // ...and the failure must come from the *unconfigured* guard, not merely
+        // from a signature mismatch — otherwise a real-but-wrong key would look
+        // identical. A token signed by ANY key must be rejected with the
+        // not-configured error while the placeholder is in place.
         let sk = test_signing_key();
         let lic = issue(&sk, &pro_claims());
-        assert!(activate(&lic, "machine-A").is_err());
+        let err = activate(&lic, "machine-A").unwrap_err().to_string();
+        assert!(
+            err.contains("not configured"),
+            "expected the fail-closed 'not configured' error, got: {err}"
+        );
         assert!(!verify(&lic, "machine-A"));
+        assert!(!is_pro_active(Some(&lic), "machine-A"));
+    }
+
+    #[test]
+    fn grants_pro_only_for_pro_plans() {
+        let mut c = pro_claims();
+        c.plan = "pro".into();
+        assert!(grants_pro(&c));
+        c.plan = "pro-lifetime".into();
+        assert!(grants_pro(&c));
+        c.plan = "free".into();
+        assert!(!grants_pro(&c));
+        c.plan = "trial".into();
+        assert!(!grants_pro(&c));
+    }
+
+    #[test]
+    fn is_pro_active_rejects_missing_or_blank_key() {
+        assert!(!is_pro_active(None, "machine-A"));
+        assert!(!is_pro_active(Some(""), "machine-A"));
+        assert!(!is_pro_active(Some("   "), "machine-A"));
+        assert!(!is_pro_active(Some("garbage.token"), "machine-A"));
+    }
+
+    #[test]
+    fn non_pro_plan_does_not_grant_pro_even_when_signed() {
+        // A validly-signed token for a non-pro plan must verify cryptographically
+        // but must NOT grant Pro (checked via grants_pro, key-agnostic here).
+        let sk = test_signing_key();
+        let vk = sk.verifying_key();
+        let mut claims = pro_claims();
+        claims.plan = "free".into();
+        let lic = issue(&sk, &claims);
+        let verified = verify_license_with_key(&lic, "machine-A", &vk).unwrap();
+        assert!(!grants_pro(&verified));
     }
 }

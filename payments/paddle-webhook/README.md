@@ -26,10 +26,39 @@ Paddle transaction.completed
 | `PADDLE_API_KEY` | ✅ | Server-side API key, used to look up the buyer's email. |
 | `RESEND_API_KEY` | ✅ | Resend API key for sending the license email. |
 | `PRICE_LIFETIME` | ✅ | The `pri_...` id of your Lifetime price. |
-| `PRICE_ANNUAL` | ✅ | The `pri_...` id of your Annual price. |
+| `PRICE_ANNUAL` | — | The `pri_...` id of your Annual price. Omit if you only sell the lifetime plan. |
 | `EMAIL_FROM` | — | e.g. `envyou <licenses@envyou.dev>` (must be a Resend-verified domain). Default is Resend's test sender. |
 | `PADDLE_API_BASE` | — | `https://api.paddle.com` (default) or `https://sandbox-api.paddle.com` for Sandbox testing. |
+| `IDEMPOTENCY_FILE` | — | Path to the JSON file recording already-processed transaction ids. Default `processed_transactions.json` (relative). **Put this on a persistent volume** (see below) so dedup survives redeploys. |
+| `PADDLE_MAX_SIGNATURE_AGE_SECS` | — | Max age of a `Paddle-Signature` timestamp before it's rejected. Default `432000` (5 days) — generous so Paddle's own delayed retries still verify; idempotency is the primary replay defense. |
 | `PORT` | — | Set automatically by Railway. |
+
+## Reliability & idempotency
+
+- The webhook **dedupes on the Paddle transaction id**, so Paddle's retries and
+  occasional duplicate deliveries never mint or email a second license.
+- A **transient** failure (Paddle/Resend `5xx`, `429`, timeout, network) returns
+  **HTTP 503** so Paddle retries — a paid license is never silently dropped. A
+  transaction is only marked processed *after* the license email succeeds.
+- A **permanent** failure (no Pro price, missing buyer email) returns `200` and
+  logs `ALERT ...` so you can notice and re-issue manually.
+- Persist `IDEMPOTENCY_FILE` on a Railway **Volume** (Service → Settings →
+  Volumes; mount e.g. `/data`, then set
+  `IDEMPOTENCY_FILE=/data/processed_transactions.json`). Without a volume, dedup
+  only holds within a container's lifetime — which still covers Paddle's burst
+  retries, but not dedup across a redeploy.
+
+## Before going live — prove the app will accept your licenses
+
+The desktop app embeds `LICENSE_PUBLIC_KEY_B64`; this webhook signs with
+`ENVYOU_SIGNING_KEY_B64`. If they don't correspond, buyers get keys the app
+rejects. Confirm the match against the exact build you ship (exits non-zero on
+mismatch, or if the app still ships the placeholder key):
+
+```bash
+ENVYOU_SIGNING_KEY_B64=... cargo run -p envyou-core --features issuer \
+    --example license_tool -- checkkey
+```
 
 ## Deploy on Railway
 

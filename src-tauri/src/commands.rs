@@ -25,7 +25,16 @@ type CmdResult<T> = Result<T, String>;
 fn load(state: &State<AppState>) -> CmdResult<EnvYouLocalState> {
     let guard = state.store.lock().map_err(|_| "state lock poisoned")?;
     let store = guard.as_ref().ok_or_else(vault_locked_err)?;
-    store.load().map_err(|e| e.to_string())
+    Ok(with_verified_pro(store.load().map_err(|e| e.to_string())?))
+}
+
+/// Recompute `is_pro` from the **signed** license on every load, rather than
+/// trusting the persisted `isPro` boolean. A locally edited state file, an
+/// expired token, or a validly-signed non-Pro token therefore grants nothing —
+/// the free/Pro boundary rests on an Ed25519 signature, not a JSON flag.
+fn with_verified_pro(mut s: EnvYouLocalState) -> EnvYouLocalState {
+    s.license.is_pro = license::is_pro_active(s.license.license_key.as_deref(), &machine_id());
+    s
 }
 
 fn persist(state: &State<AppState>, s: &EnvYouLocalState) -> CmdResult<()> {
@@ -86,9 +95,11 @@ pub fn vault_status(state: State<AppState>) -> CmdResult<VaultStatus> {
 #[tauri::command]
 pub fn unlock_vault(state: State<AppState>, password: String) -> CmdResult<EnvYouLocalState> {
     let store = Store::open_default_with_password(password).map_err(|e| e.to_string())?;
-    let data = store
-        .load()
-        .map_err(|_| "incorrect master password".to_string())?;
+    let data = with_verified_pro(
+        store
+            .load()
+            .map_err(|_| "incorrect master password".to_string())?,
+    );
     *state.store.lock().map_err(|_| "state lock poisoned")? = Some(store);
     Ok(data)
 }
@@ -108,7 +119,7 @@ pub fn set_master_password(
     let migrated = current
         .migrate_to_password(password)
         .map_err(|e| e.to_string())?;
-    let data = migrated.load().map_err(|e| e.to_string())?;
+    let data = with_verified_pro(migrated.load().map_err(|e| e.to_string())?);
     *guard = Some(migrated);
     Ok(data)
 }
@@ -230,8 +241,12 @@ pub fn activate_license(
     state: State<AppState>,
     license_key: String,
 ) -> CmdResult<EnvYouLocalState> {
-    // Validate + machine-bind the key offline (spec §6.3).
-    license::activate(&license_key, &machine_id()).map_err(|e| e.to_string())?;
+    // Validate + machine-bind the key offline (spec §6.3), and require a Pro-tier
+    // plan so a validly-signed non-Pro token can never unlock Pro.
+    let claims = license::verify_license(&license_key, &machine_id()).map_err(|e| e.to_string())?;
+    if !license::grants_pro(&claims) {
+        return Err("this license is valid but does not include the Pro plan".into());
+    }
     let mut s = load(&state)?;
     s.license.is_pro = true;
     s.license.license_key = Some(license_key.trim().to_string());

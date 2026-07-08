@@ -9,9 +9,15 @@
 //! cargo run -p envyou-core --features issuer --example license_tool -- \
 //!     keygen envyou-signing.key
 //!
-//! # 2. Print the public key for an existing private key file.
+//! # 2. Print the public key (from a file, a base64 seed, or $ENVYOU_SIGNING_KEY_B64).
 //! cargo run -p envyou-core --features issuer --example license_tool -- \
 //!     pubkey envyou-signing.key
+//!
+//! # 2b. Prove the shipped app will accept licenses signed by your seed:
+//! #     compares the seed's public key to the build's LICENSE_PUBLIC_KEY_B64
+//! #     and exits non-zero on mismatch (run it where the secret lives).
+//! ENVYOU_SIGNING_KEY_B64=... cargo run -p envyou-core --features issuer \
+//!     --example license_tool -- checkkey
 //!
 //! # 3. Mint a license token for a buyer.
 //! cargo run -p envyou-core --features issuer --example license_tool -- \
@@ -43,7 +49,9 @@ fn main() {
 mod issuer {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use ed25519_dalek::SigningKey;
-    use envyou_core::core::license::{issue_license, LicenseClaims, PRODUCT};
+    use envyou_core::core::license::{
+        is_license_key_configured, issue_license, LicenseClaims, LICENSE_PUBLIC_KEY_B64, PRODUCT,
+    };
     use rand::RngCore;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -55,14 +63,83 @@ mod issuer {
                     .map(String::as_str)
                     .unwrap_or("envyou-signing.key"),
             ),
-            Some("pubkey") => pubkey(args.get(1).ok_or("usage: pubkey <key-file>")?),
+            Some("pubkey") => pubkey(args.get(1).map(String::as_str)),
+            Some("checkkey") => checkkey(args.get(1).map(String::as_str)),
             Some("issue") => issue(&args[1..]),
             _ => {
                 eprintln!(
-                    "commands: keygen [out-file] | pubkey <key-file> | issue <key-file> [opts]"
+                    "commands:\n  \
+                     keygen [out-file]                 generate a signing keypair\n  \
+                     pubkey [key-file | b64-seed]      print the public key (else $ENVYOU_SIGNING_KEY_B64)\n  \
+                     checkkey [key-file | b64-seed]    verify the seed matches this build's LICENSE_PUBLIC_KEY_B64\n  \
+                     issue <key-file> [opts]           mint a license token"
                 );
                 Err("unknown or missing command".into())
             }
+        }
+    }
+
+    /// Resolve a signing key from (in priority order): an explicit key file, an
+    /// explicit base64 seed argument, or the `ENVYOU_SIGNING_KEY_B64` env var —
+    /// the exact same secret the Paddle webhook signs with.
+    fn resolve_signing_key(arg: Option<&str>) -> Result<SigningKey, String> {
+        if let Some(a) = arg {
+            if std::path::Path::new(a).exists() {
+                return load_key(a);
+            }
+            return signing_key_from_b64(a);
+        }
+        match std::env::var("ENVYOU_SIGNING_KEY_B64") {
+            Ok(v) => signing_key_from_b64(&v),
+            Err(_) => {
+                Err("provide a key file, a base64 seed, or set ENVYOU_SIGNING_KEY_B64".to_string())
+            }
+        }
+    }
+
+    fn signing_key_from_b64(b64: &str) -> Result<SigningKey, String> {
+        let bytes = B64
+            .decode(b64.trim())
+            .map_err(|_| "seed is not valid base64".to_string())?;
+        let seed: [u8; 32] = bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| "seed must decode to exactly 32 bytes".to_string())?;
+        Ok(SigningKey::from_bytes(&seed))
+    }
+
+    /// B1 gate: derive the public key from the signing seed and check it against
+    /// the `LICENSE_PUBLIC_KEY_B64` compiled into this build (the same source the
+    /// released app is built from). Exits non-zero on mismatch so it can gate a
+    /// release in CI. Run it where the webhook's secret lives:
+    ///   ENVYOU_SIGNING_KEY_B64=... cargo run -p envyou-core --features issuer \
+    ///       --example license_tool -- checkkey
+    fn checkkey(arg: Option<&str>) -> Result<(), String> {
+        let sk = resolve_signing_key(arg)?;
+        let derived = B64.encode(sk.verifying_key().to_bytes());
+        let embedded = LICENSE_PUBLIC_KEY_B64.trim();
+        println!("seed-derived public key       : {derived}");
+        println!("build LICENSE_PUBLIC_KEY_B64   : {embedded}");
+        println!(
+            "build key configured (not placeholder): {}",
+            is_license_key_configured()
+        );
+        if !is_license_key_configured() {
+            return Err(
+                "this build still ships the placeholder public key — paste your production key \
+                 into crates/envyou-core/src/core/license.rs (LICENSE_PUBLIC_KEY_B64) and rebuild"
+                    .into(),
+            );
+        }
+        if derived == embedded {
+            println!("MATCH ✓  the released app will accept licenses signed by this seed");
+            Ok(())
+        } else {
+            Err(
+                "MISMATCH ✗  this seed does NOT match the build's public key; every license it \
+                 signs would be rejected by the app"
+                    .into(),
+            )
         }
     }
 
@@ -84,8 +161,8 @@ mod issuer {
         Ok(())
     }
 
-    fn pubkey(key_file: &str) -> Result<(), String> {
-        let sk = load_key(key_file)?;
+    fn pubkey(arg: Option<&str>) -> Result<(), String> {
+        let sk = resolve_signing_key(arg)?;
         println!("{}", B64.encode(sk.verifying_key().to_bytes()));
         Ok(())
     }
