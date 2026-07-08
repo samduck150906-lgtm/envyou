@@ -1,9 +1,102 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://envyou.dev/</loc>
-    <lastmod>2026-07-06</lastmod>
+    <lastmod>2026-07-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
+  </url>
+  <url>
+    <loc>https://envyou.dev/?lang=ko</loc>
+    <lastmod>2026-07-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
+  </url>
+  <url>
+    <loc>https://envyou.dev/?lang=ja</loc>
+    <lastmod>2026-07-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
+  </url>
+  <url>
+    <loc>https://envyou.dev/?lang=zh</loc>
+    <lastmod>2026-07-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
+  </url>
+  <url>
+    <loc>https://envyou.dev/?lang=th</loc>
+    <lastmod>2026-07-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
+  </url>
+  <url>
+    <loc>https://envyou.dev/?lang=vi</loc>
+    <lastmod>2026-07-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
+  </url>
+  <url>
+    <loc>https://envyou.dev/?lang=hi</loc>
+    <lastmod>2026-07-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://envyou.dev/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi"/>
   </url>
 </urlset>

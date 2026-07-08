@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,6 +10,16 @@
 <meta name="author" content="ETERNALSIX" />
 <link rel="canonical" href="https://envyou.dev/" />
 <meta name="theme-color" content="#000080" />
+
+<!-- hreflang: one crawlable URL per language (client-side ?lang=) + x-default -->
+<link rel="alternate" hreflang="x-default" href="https://envyou.dev/" />
+<link rel="alternate" hreflang="en" href="https://envyou.dev/" />
+<link rel="alternate" hreflang="ko" href="https://envyou.dev/?lang=ko" />
+<link rel="alternate" hreflang="ja" href="https://envyou.dev/?lang=ja" />
+<link rel="alternate" hreflang="zh" href="https://envyou.dev/?lang=zh" />
+<link rel="alternate" hreflang="th" href="https://envyou.dev/?lang=th" />
+<link rel="alternate" hreflang="vi" href="https://envyou.dev/?lang=vi" />
+<link rel="alternate" hreflang="hi" href="https://envyou.dev/?lang=hi" />
 
 <!-- Open Graph -->
 <meta property="og:type" content="website" />
@@ -23,8 +33,13 @@
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="envyou — retro 80s window: Local-First Env Manager, Zero Cloud, AES-256, Claude MCP, $59 lifetime" />
-<meta property="og:locale" content="ko_KR" />
-<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="ja_JP" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:locale:alternate" content="th_TH" />
+<meta property="og:locale:alternate" content="vi_VN" />
+<meta property="og:locale:alternate" content="hi_IN" />
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
@@ -103,6 +118,16 @@ img{image-rendering:pixelated}
 }
 
 a{color:var(--navy)}
+
+/* ===== Skip to content (keyboard / screen-reader) ===== */
+.skip-link{
+  position:absolute;left:8px;top:-48px;z-index:100;
+  padding:8px 14px;font-weight:bold;color:var(--black);text-decoration:none;
+  border-top:2px solid var(--white);border-left:2px solid var(--white);
+  border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);
+  background:var(--gray);transition:top .12s ease;
+}
+.skip-link:focus{top:8px;outline:2px solid var(--navy)}
 
 /* ===== Outer window ===== */
 .window{
@@ -543,6 +568,7 @@ footer.foot{
 </script>
 </head>
 <body>
+<a class="skip-link" href="#main" data-i18n="skip_link">Skip to content</a>
 <div class="window" id="top">
 
   <!-- ===== Title bar ===== -->
@@ -580,19 +606,19 @@ footer.foot{
   </header>
 
   <!-- ===== Content ===== -->
-  <main class="content">
+  <main class="content" id="main">
 
     <!-- Hero -->
     <section class="hero">
       <div class="hero-text">
         <span class="eyebrow">▶ TAURI · RUST · LOCAL-ONLY</span>
         <h1 data-i18n="hero_h1">Stop Context<br>Switching.<br><span class="hl">Local-First</span> Environment Variable Manager.</h1>
-        <p class="def"><b>envyou</b> is a local-first, encrypted environment variable manager for developers that stores your <code>.env</code> secrets and API keys only on your machine (AES-256-GCM), never in the cloud — and connects to Claude Desktop over MCP so AI can read and write environment variables only after you approve each request.</p>
-        <p class="lead" data-i18n="hero_lead">에디터와 터미널 사이를 오가지 마세요. <code>.env</code> 를 항상 화면 위에 띄워두고 클릭 한 번으로 복사하세요.</p>
-        <p class="desc">무거운 클라우드 설정 도구는 그만. envyou는 수 MB짜리 초경량 데스크톱 앱으로, 모든 키를 <b>로컬에만 AES-256으로 암호화 저장</b>합니다. 그리고 Claude Desktop과 MCP로 연동돼 AI가 직접 환경변수를 읽고 쓸 수 있죠.</p>
+        <p class="def" data-i18n="hero_def"><b>envyou</b> is a local-first, encrypted environment variable manager for developers that stores your <code>.env</code> secrets and API keys only on your machine (AES-256-GCM), never in the cloud — and connects to Claude Desktop over MCP so AI can read and write environment variables only after you approve each request.</p>
+        <p class="lead" data-i18n="hero_lead">Stop jumping between your editor and terminal. Keep your <code>.env</code> always on top and copy it with one click.</p>
+        <p class="desc" data-i18n="hero_desc">No more heavy cloud config tools. envyou is a lightweight desktop app of just a few MB that stores every key <b>locally, AES-256 encrypted</b>. And it connects to Claude Desktop over MCP so AI can read and write your environment variables directly.</p>
         <div class="cta-row">
           <a href="#download" class="btn primary big"><span data-i18n="cta_dl">⬇ Download Free</span></a>
-          <a href="#pricing" class="btn big cta"><span data-i18n="cta_pro">Pro 보기 — $59 평생</span></a>
+          <a href="#pricing" class="btn big cta"><span data-i18n="cta_pro">See Pro — $59 lifetime</span></a>
         </div>
         <div class="trust">
           <span class="tag" data-i18n="trust_cloud">Zero Cloud</span>
@@ -632,25 +658,25 @@ footer.foot{
 
     <!-- Features -->
     <section class="panel alt" id="features">
-      <div class="sec-title"><span class="chip">01</span><h2 data-i18n="sec_why">왜 envyou 인가</h2></div>
-      <p class="sec-sub" data-i18n="feat_sub">무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.</p>
+      <div class="sec-title"><span class="chip">01</span><h2 data-i18n="sec_why">Why envyou</h2></div>
+      <p class="sec-sub" data-i18n="feat_sub">For developers tired of heavy, scattered workflows — we focused on the three things that matter.</p>
       <div class="features">
         <div class="feat raised">
           <div class="icon">🪶</div>
-          <h3 data-i18n="feat1_t">극한의 가벼움</h3>
-          <p data-i18n="feat1_p">Electron이 아닌 Tauri(Rust) 기반. 수 MB 메모리만 쓰는 플로팅 데스크톱 앱이 전역 단축키로 즉시 떠오릅니다.</p>
+          <h3 data-i18n="feat1_t">Ultra lightweight</h3>
+          <p data-i18n="feat1_p">Built on Tauri (Rust), not Electron. A floating desktop app that uses only a few MB of memory and pops up instantly with a global hotkey.</p>
           <span class="kbd">⌨ Ctrl + Shift + E</span>
         </div>
         <div class="feat raised">
           <div class="icon">🔒</div>
-          <h3 data-i18n="feat2_t">완벽한 프라이버시</h3>
-          <p data-i18n="feat2_p">API 키·DB 패스워드는 어떤 서버로도 전송되지 않습니다. 단일 파일에 AES-256-GCM으로 암호화되어 오직 로컬에만 저장됩니다.</p>
+          <h3 data-i18n="feat2_t">Total privacy</h3>
+          <p data-i18n="feat2_p">API keys and DB passwords are never sent to any server. Everything is stored only on your machine, encrypted with AES-256-GCM in a single file.</p>
           <span class="kbd">🚫 No Cloud Sync</span>
         </div>
         <div class="feat raised">
           <div class="icon">🤖</div>
-          <h3 data-i18n="feat3_t">Claude MCP 연동</h3>
-          <p data-i18n="feat3_p">Model Context Protocol로 Claude Desktop과 연결. AI가 환경변수를 직접 읽고 쓰되, 매 호출마다 사용자 물리 승인 팝업이 뜹니다.</p>
+          <h3 data-i18n="feat3_t">Claude MCP integration</h3>
+          <p data-i18n="feat3_p">Connect to Claude Desktop over the Model Context Protocol. AI can read and write your variables directly — but every call pops a physical approval dialog you must accept.</p>
           <span class="kbd">$ envyou --mcp</span>
         </div>
       </div>
@@ -658,8 +684,8 @@ footer.foot{
 
     <!-- See it in action -->
     <section class="panel" id="demos">
-      <div class="sec-title"><span class="chip">02</span><h2>이래서 envyou가 필요합니다</h2></div>
-      <p class="sec-sub">매일 겪는 <code>.env</code> 피로 — 붙여넣기, 환경 비교, 검색, AI 연동 — 을 앱이 어떻게 없애는지 실제 화면으로 보여드립니다.</p>
+      <div class="sec-title"><span class="chip">02</span><h2 data-i18n="demos_h2">This is why you need envyou</h2></div>
+      <p class="sec-sub" data-i18n="demos_sub">The daily <code>.env</code> grind — pasting, comparing environments, searching, wiring up AI — and how the app makes it vanish, shown on real screens.</p>
       <div class="demos" aria-hidden="true">
 
         <!-- Smart Import -->
@@ -671,19 +697,19 @@ footer.foot{
             <div class="d-row"><span class="d-badge badge-new">NEW</span><span class="d-key">NEXT_PUBLIC_URL</span><span class="d-val">https://app.io</span></div>
             <div class="d-row"><span class="d-badge badge-upd">UPDATE</span><span class="d-key">OPENAI_API_KEY</span><span class="d-badge badge-secret">secret</span><span class="d-val">(empty)</span></div>
           </div>
-          <div class="cap"><b>Smart Import</b> — <code>.env</code>·<code>export</code>·JSON·<code>process.env</code> 무엇이든 붙여넣기. 저장 전에 새 키·충돌·시크릿을 미리 확인.</div>
+          <div class="cap" data-i18n="di_cap"><b>Smart Import</b> — paste <code>.env</code>, <code>export</code>, JSON, or <code>process.env</code>, anything. Preview new keys, conflicts, and secrets before you save.</div>
         </div>
 
         <!-- Diff -->
         <div class="demo raised">
           <div class="win-head"><span>■ Diff — staging ⇄ production</span><span class="dots"><i></i><i></i></span></div>
           <div class="screen">
-            <div class="d-row"><span class="d-minus">−</span><span class="d-key">STRIPE_SECRET</span><span class="d-val">staging 에만</span></div>
-            <div class="d-row"><span class="d-plus">+</span><span class="d-key">SENTRY_DSN</span><span class="d-val">production 에만</span></div>
-            <div class="d-row"><span style="color:#b58900;font-weight:bold">≠</span><span class="d-key">DATABASE_URL</span><span class="d-val">값 다름 ••••</span></div>
-            <div class="d-row"><span style="color:#888">=</span><span class="d-key">NODE_ENV</span><span class="d-val">동일</span></div>
+            <div class="d-row"><span class="d-minus">−</span><span class="d-key">STRIPE_SECRET</span><span class="d-val" data-i18n="diff_a">staging only</span></div>
+            <div class="d-row"><span class="d-plus">+</span><span class="d-key">SENTRY_DSN</span><span class="d-val" data-i18n="diff_b">production only</span></div>
+            <div class="d-row"><span style="color:#b58900;font-weight:bold">≠</span><span class="d-key">DATABASE_URL</span><span class="d-val" data-i18n="diff_diff">values differ ••••</span></div>
+            <div class="d-row"><span style="color:#888">=</span><span class="d-key">NODE_ENV</span><span class="d-val" data-i18n="diff_same">same</span></div>
           </div>
-          <div class="cap"><b>환경 비교</b> — staging과 production 사이 빠진 키·바뀐 값을 한눈에. 값은 기본 마스킹, 반대편으로 복사도 한 번에.</div>
+          <div class="cap" data-i18n="diff_cap"><b>Compare environments</b> — spot missing keys and changed values between staging and production at a glance. Values masked by default; copy to the other side in one click.</div>
         </div>
 
         <!-- Command Palette -->
@@ -695,45 +721,45 @@ footer.foot{
             <div class="d-pal">＄ DATABASE_URL &nbsp;(staging)</div>
             <div class="d-pal">⧉ Export .env</div>
             <div class="d-pal">⇄ Compare projects</div>
-            <div style="font-size:10px;color:#888;margin-top:5px">↑↓ 이동 · Enter 복사 · Esc 닫기</div>
+            <div style="font-size:10px;color:#888;margin-top:5px" data-i18n="pal_hint">↑↓ move · Enter copy · Esc close</div>
           </div>
-          <div class="cap"><b>커맨드 팔레트</b> — <code>Ctrl+K</code> 한 번으로 프로젝트·변수·액션을 키보드만으로. 마우스가 필요 없습니다.</div>
+          <div class="cap" data-i18n="pal_cap"><b>Command Palette</b> — one <code>Ctrl+K</code> reaches projects, variables, and actions with the keyboard alone. No mouse required.</div>
         </div>
 
         <!-- Claude MCP approval -->
         <div class="demo raised">
           <div class="win-head"><span>■ Claude Desktop + envyou (MCP)</span><span class="dots"><i></i><i></i></span></div>
           <div class="screen">
-            <div style="color:#555">🤖 “api-server 의 DATABASE_URL 값 알려줘”</div>
+            <div style="color:#555" data-i18n="mcp_ask">🤖 “What's the DATABASE_URL for api-server?”</div>
             <div class="d-approve">
-              <div><b>⚠ envyou 승인 요청</b></div>
-              <div style="font-size:11px;margin-top:3px">Claude 가 <b>DATABASE_URL</b> 을 읽으려 합니다.</div>
-              <div class="btns"><span class="mini-b">거부</span><span class="mini-b pri">허용</span></div>
+              <div><b data-i18n="mcp_req">⚠ envyou approval request</b></div>
+              <div style="font-size:11px;margin-top:3px" data-i18n="mcp_body">Claude wants to read <b>DATABASE_URL</b>.</div>
+              <div class="btns"><span class="mini-b" data-i18n="mcp_deny">Deny</span><span class="mini-b pri" data-i18n="mcp_allow">Allow</span></div>
             </div>
           </div>
-          <div class="cap"><b>사람이 승인해야만</b> AI가 시크릿을 봅니다. 매 읽기·쓰기마다 로컬 승인 팝업 — 클라우드 유출 제로.</div>
+          <div class="cap" data-i18n="mcp_cap"><b>A human must approve</b> before AI sees a secret. Every read and write pops a local approval dialog — zero cloud leaks.</div>
         </div>
 
         <!-- Free -> Pro unlock (wide) -->
         <div class="demo raised" style="grid-column:1/-1">
-          <div class="win-head"><span>■ Free → Pro 잠금 해제</span><span class="dots"><i></i><i></i></span></div>
+          <div class="win-head"><span>■ Free → Pro <span data-i18n="fp_unlock">unlock</span></span><span class="dots"><i></i><i></i></span></div>
           <div class="screen" style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
             <div>
               <div style="font-weight:bold;margin-bottom:6px">FREE</div>
-              <div class="d-row"><span class="d-key">프로젝트</span><span class="d-val">3 / 3 🔒</span></div>
-              <div class="d-row"><span class="d-key">변수</span><span class="d-val">10 / 10 🔒</span></div>
-              <div class="d-row"><span class="d-key">커스텀 컬러</span><span class="d-val">🔒 Pro</span></div>
+              <div class="d-row"><span class="d-key" data-i18n="fp_projects">Projects</span><span class="d-val">3 / 3 🔒</span></div>
+              <div class="d-row"><span class="d-key" data-i18n="fp_vars">Variables</span><span class="d-val">10 / 10 🔒</span></div>
+              <div class="d-row"><span class="d-key" data-i18n="fp_colors">Custom colors</span><span class="d-val">🔒 Pro</span></div>
               <div class="d-row"><span class="d-key">Claude MCP</span><span class="d-val">🔒 Pro</span></div>
             </div>
             <div>
               <div style="font-weight:bold;margin-bottom:6px;color:var(--green)">PRO ✦</div>
-              <div class="d-row"><span class="d-key">프로젝트</span><span class="d-val" style="color:var(--green)">무제한 ✔</span></div>
-              <div class="d-row"><span class="d-key">변수</span><span class="d-val" style="color:var(--green)">무제한 ✔</span></div>
-              <div class="d-row"><span class="d-key">커스텀 컬러</span><span class="d-val" style="color:var(--green)">✔</span></div>
+              <div class="d-row"><span class="d-key" data-i18n="fp_projects">Projects</span><span class="d-val" style="color:var(--green)" data-i18n="fp_unlimited">Unlimited ✔</span></div>
+              <div class="d-row"><span class="d-key" data-i18n="fp_vars">Variables</span><span class="d-val" style="color:var(--green)" data-i18n="fp_unlimited">Unlimited ✔</span></div>
+              <div class="d-row"><span class="d-key" data-i18n="fp_colors">Custom colors</span><span class="d-val" style="color:var(--green)">✔</span></div>
               <div class="d-row"><span class="d-key">Claude MCP</span><span class="d-val" style="color:var(--green)">✔</span></div>
             </div>
           </div>
-          <div class="cap"><b>한 번 결제 $59 · 평생 소장</b> — 무료로 쓰다 상한에 걸리면 앱이 바로 여기로 안내합니다. 구독 없이 평생 업데이트.</div>
+          <div class="cap" data-i18n="fp_cap"><b>One payment, $59 — yours for life.</b> Use it free, and when you hit a limit the app brings you right here. Lifetime updates, no subscription.</div>
         </div>
 
       </div>
@@ -820,8 +846,8 @@ footer.foot{
 
     <!-- Pricing -->
     <section class="panel" id="pricing">
-      <div class="sec-title"><span class="chip">04</span><h2 data-i18n="sec_pricing">가격 — 구독은 없습니다</h2></div>
-      <p class="sec-sub">한 번 사면 평생 내 것. 단 한 번의 결제로 모든 Pro 기능을 영구히 잠금 해제하세요.</p>
+      <div class="sec-title"><span class="chip">04</span><h2 data-i18n="sec_pricing">Pricing — no subscription</h2></div>
+      <p class="sec-sub" data-i18n="pricing_sub">Buy once, keep it forever. A single payment permanently unlocks every Pro feature.</p>
       <div class="pricing">
 
         <!-- Free -->
@@ -829,18 +855,18 @@ footer.foot{
           <div class="p-title"><span>■ Free.exe</span><span class="p-close">✕</span></div>
           <div class="p-body">
             <h3>Free</h3>
-            <p class="price">₩0</p>
-            <p class="note">시작하기에 충분합니다.</p>
+            <p class="price">$0</p>
+            <p class="note" data-i18n="free_note">Enough to get started.</p>
             <ul>
-              <li><span class="yes">✔</span> 프로젝트 최대 <b>3개</b></li>
-              <li><span class="yes">✔</span> 프로젝트당 변수 10개</li>
-              <li><span class="yes">✔</span> 전역 단축키 · Always on Top</li>
-              <li><span class="yes">✔</span> 로컬 AES-256 암호화</li>
-              <li><span class="yes">✔</span> .env 한 번에 복사 · 붙여넣기</li>
-              <li><span class="no">✕</span> <span style="color:#555">커스텀 테마 · 환경별 컬러</span></li>
-              <li><span class="no">✕</span> <span style="color:#555">Claude MCP 연동</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="free_f1">Up to <b>3 projects</b></span></li>
+              <li><span class="yes">✔</span> <span data-i18n="free_f2">10 variables per project</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="free_f3">Global hotkey · Always on Top</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="free_f4">Local AES-256 encryption</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="free_f5">One-click <code>.env</code> copy &amp; paste</span></li>
+              <li><span class="no">✕</span> <span style="color:#555" data-i18n="free_f6">Custom themes · per-env colors</span></li>
+              <li><span class="no">✕</span> <span style="color:#555" data-i18n="free_f7">Claude MCP integration</span></li>
             </ul>
-            <a href="#download" class="btn">⬇ 무료 다운로드</a>
+            <a href="#download" class="btn" data-i18n="free_cta">⬇ Download free</a>
           </div>
         </div>
 
@@ -850,19 +876,19 @@ footer.foot{
           <div class="p-title"><span>★ Pro.exe</span><span class="p-close">✕</span></div>
           <div class="p-body">
             <h3>Pro</h3>
-            <p class="price">$59 <small>/ 평생 1회 결제</small></p>
-            <p class="note">구독 없음. 추가 비용 없음.</p>
+            <p class="price">$59 <small data-i18n="pro_price_sub">/ one-time, lifetime</small></p>
+            <p class="note" data-i18n="pro_note">No subscription. No extra fees.</p>
             <ul>
-              <li><span class="yes">✔</span> 프로젝트 <b>무제한</b> 생성</li>
-              <li><span class="yes">✔</span> 변수 <b>무제한</b> 등록</li>
-              <li><span class="yes">✔</span> <b>커스텀 테마</b> · 환경별 컬러</li>
-              <li><span class="yes">✔</span> <b>Claude MCP 권한 잠금 해제</b></li>
-              <li><span class="yes">✔</span> 마스터 키 보안 스토리지 (Argon2id)</li>
-              <li><span class="yes">✔</span> 오프라인 라이선스 인증</li>
-              <li><span class="yes">✔</span> 모든 향후 업데이트 <b>무료</b></li>
-              <li><span class="yes">✔</span> 우선 이메일 지원</li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f1">Create <b>unlimited</b> projects</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f2">Register <b>unlimited</b> variables</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f3"><b>Custom themes</b> · per-env colors</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f4"><b>Unlock Claude MCP permissions</b></span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f5">Master-key secure storage (Argon2id)</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f6">Offline license activation</span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f7">All future updates <b>free</b></span></li>
+              <li><span class="yes">✔</span> <span data-i18n="pro_f8">Priority email support</span></li>
             </ul>
-            <a href="#" class="btn primary" id="buyPro" data-i18n="pro_buy">★ 평생 소장 — $59</a>
+            <a href="#" class="btn primary" id="buyPro" data-i18n="pro_buy">★ Lifetime — $59</a>
           </div>
         </div>
 
@@ -871,26 +897,26 @@ footer.foot{
 
     <!-- Download -->
     <section class="panel alt" id="download">
-      <div class="sec-title"><span class="chip">05</span><h2 data-i18n="sec_download">다운로드</h2></div>
-      <p class="sec-sub">같은 앱, 두 가지 방식입니다. <b>무료</b>로 받아 바로 시작하고, 원할 때 앱 안에서 <b>Pro</b>를 잠금 해제하세요 — 한 번 결제, 평생 소장.</p>
+      <div class="sec-title"><span class="chip">05</span><h2 data-i18n="sec_download">Download</h2></div>
+      <p class="sec-sub" data-i18n="dl_sub">Same app, two ways. Grab it <b>free</b> and start now, then unlock <b>Pro</b> inside the app whenever you want — one payment, yours for life.</p>
 
       <div class="dl-grid">
         <!-- Free download -->
         <div class="dl-card raised">
-          <div class="dl-card-head"><span>■ 무료로 시작</span><span>₩0</span></div>
+          <div class="dl-card-head"><span>■ <span data-i18n="dl_free_head">Start free</span></span><span>$0</span></div>
           <div class="cta-row" style="margin-bottom:10px">
             <a href="#" class="btn primary big dl" data-os="Windows">⊞ Windows <small style="font-weight:normal">(.msi)</small></a>
             <a href="#" class="btn big dl" data-os="Linux">🐧 Linux <small style="font-weight:normal">(AppImage)</small></a>
-            <a href="#" class="btn big" id="dl-mac" aria-disabled="true" style="opacity:.55">⌘ macOS <small style="font-weight:normal">(coming soon)</small></a>
+            <a href="#" class="btn big" id="dl-mac" role="link" aria-disabled="true" style="opacity:.55;cursor:not-allowed">⌘ macOS <small style="font-weight:normal">(coming soon)</small></a>
           </div>
-          <p class="dl-note">버튼을 누르면 설치 파일이 <b>바로 다운로드</b>됩니다. Windows는 아직 코드 서명 전이라 SmartScreen 경고가 나올 수 있어요 — <b>추가 정보 → 실행</b>. macOS는 곧 제공됩니다.</p>
+          <p class="dl-note" data-i18n="dl_note">Clicking a button <b>downloads the installer directly</b>. Windows isn't code-signed yet, so SmartScreen may warn — <b>More info → Run anyway</b>. macOS is coming soon.</p>
         </div>
 
         <!-- Pro unlock -->
         <div class="dl-card pro raised">
-          <div class="dl-card-head"><span>★ Pro로 잠금 해제</span><span>$59 · 평생</span></div>
-          <p class="dl-note" style="margin-bottom:12px">무제한 프로젝트·변수, Claude MCP 연동, 커스텀 컬러, 평생 업데이트. 결제하면 라이선스 키가 이메일로 오고, <b>같은 앱</b>의 “Upgrade to Pro”에 붙여넣으면 즉시 잠금 해제됩니다 (오프라인 인증).</p>
-          <a href="#" class="btn primary big" id="buyProDl">★ 평생 소장 — $59</a>
+          <div class="dl-card-head"><span>★ <span data-i18n="dl_pro_head">Unlock with Pro</span></span><span data-i18n="dl_pro_price">$59 · lifetime</span></div>
+          <p class="dl-note" style="margin-bottom:12px" data-i18n="dl_pro_note">Unlimited projects &amp; variables, Claude MCP integration, custom colors, lifetime updates. After payment a license key is emailed to you; paste it into “Upgrade to Pro” in the <b>same app</b> and it unlocks instantly (offline activation).</p>
+          <a href="#" class="btn primary big" id="buyProDl" data-i18n="pro_buy">★ Lifetime — $59</a>
         </div>
       </div>
     </section>
@@ -981,7 +1007,7 @@ footer.foot{
     <div class="d-title"><span id="dlgTitle">envyou</span><span class="x" id="dlgX">✕</span></div>
     <div class="d-body">
       <div class="d-ico" id="dlgIco">ℹ️</div>
-      <div id="dlgMsg">메시지</div>
+      <div id="dlgMsg">Message</div>
     </div>
     <div class="d-actions">
       <button class="btn primary" id="dlgOk" style="min-width:90px;justify-content:center">OK</button>
@@ -1062,7 +1088,7 @@ footer.foot{
   });
   // macOS build is not published yet.
   var dlMac = $("#dl-mac");
-  if (dlMac) dlMac.addEventListener("click", function(e){ e.preventDefault(); say("macOS build is coming soon."); });
+  if (dlMac) dlMac.addEventListener("click", function(e){ e.preventDefault(); say((typeof CUR !== "undefined" && CUR && CUR.mac_cs) || "macOS build is coming soon."); });
 
   // GNB download routes to the section; if release exists later, swap href.
   $("#gnbDownload").addEventListener("click",function(){say("Jumping to downloads…");});
@@ -1200,23 +1226,424 @@ footer.foot{
     }
   };
   for (var _L in I18N2){ for (var _K in I18N2[_L]){ (I18N[_L]=I18N[_L]||{})[_K]=I18N2[_L][_K]; } }
-  function applyLang(l){
+  var I18N3 = {
+    "en": {
+      "hero_def": "<b>envyou</b> is a local-first, encrypted environment variable manager for developers that stores your <code>.env</code> secrets and API keys only on your machine (AES-256-GCM), never in the cloud — and connects to Claude Desktop over MCP so AI can read and write environment variables only after you approve each request.",
+      "hero_desc": "No more heavy cloud config tools. envyou is a lightweight desktop app of just a few MB that stores every key <b>locally, AES-256 encrypted</b>. And it connects to Claude Desktop over MCP so AI can read and write your environment variables directly.",
+      "demos_h2": "This is why you need envyou",
+      "demos_sub": "The daily <code>.env</code> grind — pasting, comparing environments, searching, wiring up AI — and how the app makes it vanish, shown on real screens.",
+      "di_cap": "<b>Smart Import</b> — paste <code>.env</code>, <code>export</code>, JSON, or <code>process.env</code>, anything. Preview new keys, conflicts, and secrets before you save.",
+      "diff_a": "staging only",
+      "diff_b": "production only",
+      "diff_diff": "values differ ••••",
+      "diff_same": "same",
+      "diff_cap": "<b>Compare environments</b> — spot missing keys and changed values between staging and production at a glance. Values masked by default; copy to the other side in one click.",
+      "pal_hint": "↑↓ move · Enter copy · Esc close",
+      "pal_cap": "<b>Command Palette</b> — one <code>Ctrl+K</code> reaches projects, variables, and actions with the keyboard alone. No mouse required.",
+      "mcp_ask": "🤖 “What's the DATABASE_URL for api-server?”",
+      "mcp_req": "⚠ envyou approval request",
+      "mcp_body": "Claude wants to read <b>DATABASE_URL</b>.",
+      "mcp_deny": "Deny",
+      "mcp_allow": "Allow",
+      "mcp_cap": "<b>A human must approve</b> before AI sees a secret. Every read and write pops a local approval dialog — zero cloud leaks.",
+      "fp_projects": "Projects",
+      "fp_vars": "Variables",
+      "fp_colors": "Custom colors",
+      "fp_unlimited": "Unlimited ✔",
+      "fp_unlock": "unlock",
+      "fp_cap": "<b>One payment, $59 — yours for life.</b> Use it free, and when you hit a limit the app brings you right here. Lifetime updates, no subscription.",
+      "pricing_sub": "Buy once, keep it forever. A single payment permanently unlocks every Pro feature.",
+      "free_note": "Enough to get started.",
+      "free_f1": "Up to <b>3 projects</b>",
+      "free_f2": "10 variables per project",
+      "free_f3": "Global hotkey · Always on Top",
+      "free_f4": "Local AES-256 encryption",
+      "free_f5": "One-click <code>.env</code> copy &amp; paste",
+      "free_f6": "Custom themes · per-env colors",
+      "free_f7": "Claude MCP integration",
+      "free_cta": "⬇ Download free",
+      "pro_price_sub": "/ one-time, lifetime",
+      "pro_note": "No subscription. No extra fees.",
+      "pro_f1": "Create <b>unlimited</b> projects",
+      "pro_f2": "Register <b>unlimited</b> variables",
+      "pro_f3": "<b>Custom themes</b> · per-env colors",
+      "pro_f4": "<b>Unlock Claude MCP permissions</b>",
+      "pro_f5": "Master-key secure storage (Argon2id)",
+      "pro_f6": "Offline license activation",
+      "pro_f7": "All future updates <b>free</b>",
+      "pro_f8": "Priority email support",
+      "dl_sub": "Same app, two ways. Grab it <b>free</b> and start now, then unlock <b>Pro</b> inside the app whenever you want — one payment, yours for life.",
+      "dl_free_head": "Start free",
+      "dl_note": "Clicking a button <b>downloads the installer directly</b>. Windows isn't code-signed yet, so SmartScreen may warn — <b>More info → Run anyway</b>. macOS is coming soon.",
+      "dl_pro_head": "Unlock with Pro",
+      "dl_pro_price": "$59 · lifetime",
+      "dl_pro_note": "Unlimited projects &amp; variables, Claude MCP integration, custom colors, lifetime updates. After payment a license key is emailed to you; paste it into “Upgrade to Pro” in the <b>same app</b> and it unlocks instantly (offline activation).",
+      "skip_link": "Skip to content",
+      "mac_cs": "macOS build is coming soon."
+    },
+    "ko": {
+      "hero_def": "<b>envyou</b>는 개발자를 위한 로컬 우선 암호화 환경 변수 관리자입니다. <code>.env</code> 시크릿과 API 키를 클라우드가 아닌 오직 내 기기에만 저장하며(AES-256-GCM), MCP를 통해 Claude Desktop과 연결되어 요청마다 직접 승인한 뒤에만 AI가 환경 변수를 읽고 쓸 수 있습니다.",
+      "hero_desc": "무거운 클라우드 설정 도구는 이제 그만. envyou는 단 몇 MB에 불과한 가벼운 데스크톱 앱으로, 모든 키를 <b>로컬에 AES-256으로 암호화</b>해 저장합니다. 그리고 MCP를 통해 Claude Desktop과 연결되어 AI가 환경 변수를 직접 읽고 쓸 수 있습니다.",
+      "demos_h2": "이래서 envyou가 필요합니다",
+      "demos_sub": "매일 반복되는 <code>.env</code> 노동 — 붙여넣기, 환경 비교, 검색, AI 연결 — 이 모든 것을 앱이 어떻게 없애주는지 실제 화면으로 보여드립니다.",
+      "di_cap": "<b>스마트 가져오기</b> — <code>.env</code>, <code>export</code>, JSON, <code>process.env</code> 등 무엇이든 붙여넣으세요. 저장하기 전에 새 키, 충돌, 시크릿을 미리 확인하세요.",
+      "diff_a": "staging 전용",
+      "diff_b": "production 전용",
+      "diff_diff": "값 다름 ••••",
+      "diff_same": "동일",
+      "diff_cap": "<b>환경 비교</b> — staging과 production 사이의 누락된 키와 변경된 값을 한눈에 파악하세요. 값은 기본적으로 마스킹되며, 클릭 한 번으로 반대쪽에 복사할 수 있습니다.",
+      "pal_hint": "↑↓ 이동 · Enter 복사 · Esc 닫기",
+      "pal_cap": "<b>커맨드 팔레트</b> — <code>Ctrl+K</code> 하나로 프로젝트, 변수, 작업까지 키보드만으로 도달하세요. 마우스가 필요 없습니다.",
+      "mcp_ask": "🤖 “api-server의 DATABASE_URL이 뭐야?”",
+      "mcp_req": "⚠ envyou 승인 요청",
+      "mcp_body": "Claude가 <b>DATABASE_URL</b>을 읽으려고 합니다.",
+      "mcp_deny": "거부",
+      "mcp_allow": "허용",
+      "mcp_cap": "AI가 시크릿을 보기 전에 <b>사람이 반드시 승인</b>해야 합니다. 모든 읽기와 쓰기마다 로컬 승인 창이 뜨며, 클라우드 유출은 전혀 없습니다.",
+      "fp_projects": "프로젝트",
+      "fp_vars": "변수",
+      "fp_colors": "커스텀 색상",
+      "fp_unlimited": "무제한 ✔",
+      "fp_cap": "<b>한 번 결제 $59 — 평생 내 것.</b> 무료로 쓰다가 한계에 도달하면 앱이 바로 이곳으로 안내합니다. 평생 업데이트, 구독 없음.",
+      "pricing_sub": "한 번 구매하면 영원히 내 것. 단 한 번의 결제로 모든 Pro 기능이 영구 잠금 해제됩니다.",
+      "free_note": "시작하기에 충분합니다.",
+      "free_f1": "최대 <b>3개 프로젝트</b>",
+      "free_f2": "프로젝트당 변수 10개",
+      "free_f3": "글로벌 단축키 · 항상 위에 표시",
+      "free_f4": "로컬 AES-256 암호화",
+      "free_f5": "원클릭 <code>.env</code> 복사 &amp; 붙여넣기",
+      "free_f6": "커스텀 테마 · 환경별 색상",
+      "free_f7": "Claude MCP 연동",
+      "free_cta": "⬇ 무료 다운로드",
+      "pro_price_sub": "/ 한 번 결제, 평생",
+      "pro_note": "구독 없음. 추가 비용 없음.",
+      "pro_f1": "<b>무제한</b> 프로젝트 생성",
+      "pro_f2": "<b>무제한</b> 변수 등록",
+      "pro_f3": "<b>커스텀 테마</b> · 환경별 색상",
+      "pro_f4": "<b>Claude MCP 권한 잠금 해제</b>",
+      "pro_f5": "마스터 키 보안 저장소(Argon2id)",
+      "pro_f6": "오프라인 라이선스 활성화",
+      "pro_f7": "이후 모든 업데이트 <b>무료</b>",
+      "pro_f8": "우선 이메일 지원",
+      "dl_sub": "같은 앱, 두 가지 방법. <b>무료</b>로 받아 지금 바로 시작하고, 원할 때 언제든 앱 안에서 <b>Pro</b>를 잠금 해제하세요 — 한 번 결제, 평생 내 것.",
+      "dl_free_head": "무료로 시작",
+      "dl_note": "버튼을 클릭하면 <b>설치 프로그램이 바로 다운로드</b>됩니다. Windows는 아직 코드 서명이 되어 있지 않아 SmartScreen 경고가 뜰 수 있습니다 — <b>추가 정보 → 실행</b>. macOS는 곧 출시됩니다.",
+      "dl_pro_head": "Pro로 잠금 해제",
+      "dl_pro_price": "$59 · 평생",
+      "dl_pro_note": "무제한 프로젝트 &amp; 변수, Claude MCP 연동, 커스텀 색상, 평생 업데이트. 결제 후 라이선스 키가 이메일로 발송되며, <b>같은 앱</b>의 “Pro로 업그레이드”에 붙여넣으면 즉시 잠금 해제됩니다(오프라인 활성화).",
+      "skip_link": "본문으로 건너뛰기",
+      "mac_cs": "macOS 빌드는 곧 출시됩니다.",
+      "fp_unlock": "잠금 해제"
+    },
+    "ja": {
+      "hero_def": "<b>envyou</b> は開発者向けのローカルファースト暗号化環境変数マネージャーです。<code>.env</code> のシークレットや API キーをあなたのマシン上だけに保存し（AES-256-GCM）、クラウドには一切保存しません。さらに MCP 経由で Claude Desktop に接続し、AI がリクエストごとにあなたの承認を得た後にのみ環境変数を読み書きできます。",
+      "hero_desc": "重厚なクラウド設定ツールはもう不要。envyou はわずか数 MB の軽量デスクトップアプリで、すべてのキーを<b>ローカルに AES-256 暗号化</b>して保存します。しかも MCP 経由で Claude Desktop に接続し、AI があなたの環境変数を直接読み書きできます。",
+      "demos_h2": "だから envyou が必要なんです",
+      "demos_sub": "日々の <code>.env</code> の手間 — 貼り付け、環境の比較、検索、AI との連携 — それがアプリでどう消え去るのか、実際の画面でお見せします。",
+      "di_cap": "<b>スマートインポート</b> — <code>.env</code>、<code>export</code>、JSON、<code>process.env</code>、何でも貼り付け。保存前に新しいキー、競合、シークレットをプレビュー。",
+      "diff_a": "staging のみ",
+      "diff_b": "production のみ",
+      "diff_diff": "値が異なる ••••",
+      "diff_same": "同じ",
+      "diff_cap": "<b>環境を比較</b> — staging と production の間で欠けているキーや変更された値を一目で発見。値はデフォルトでマスクされ、ワンクリックで反対側にコピー。",
+      "pal_hint": "↑↓ 移動 · Enter コピー · Esc 閉じる",
+      "pal_cap": "<b>コマンドパレット</b> — <code>Ctrl+K</code> ひとつでプロジェクト、変数、アクションにキーボードだけで到達。マウス不要。",
+      "mcp_ask": "🤖 「api-server の DATABASE_URL は何？」",
+      "mcp_req": "⚠ envyou 承認リクエスト",
+      "mcp_body": "Claude が <b>DATABASE_URL</b> を読み取ろうとしています。",
+      "mcp_deny": "拒否",
+      "mcp_allow": "許可",
+      "mcp_cap": "<b>AI がシークレットを見る前に、人間の承認が必須。</b>読み書きのたびにローカルの承認ダイアログが表示され、クラウドへの漏洩はゼロ。",
+      "fp_projects": "プロジェクト",
+      "fp_vars": "変数",
+      "fp_colors": "カスタムカラー",
+      "fp_unlimited": "無制限 ✔",
+      "fp_cap": "<b>一度きりの支払い、$59 — 一生あなたのもの。</b>無料で使い始めて、制限に達したらアプリがここへ案内します。買い切りアップデート、サブスクなし。",
+      "pricing_sub": "一度買えば、ずっと使える。一回の支払いですべての Pro 機能を永久にアンロック。",
+      "free_note": "始めるには十分。",
+      "free_f1": "<b>3 プロジェクト</b>まで",
+      "free_f2": "プロジェクトごとに 10 変数",
+      "free_f3": "グローバルホットキー · 常に最前面",
+      "free_f4": "ローカル AES-256 暗号化",
+      "free_f5": "ワンクリックで <code>.env</code> のコピー &amp; ペースト",
+      "free_f6": "カスタムテーマ · 環境ごとのカラー",
+      "free_f7": "Claude MCP 連携",
+      "free_cta": "⬇ 無料ダウンロード",
+      "pro_price_sub": "/ 一度きり、買い切り",
+      "pro_note": "サブスクなし。追加料金なし。",
+      "pro_f1": "<b>無制限</b>にプロジェクトを作成",
+      "pro_f2": "<b>無制限</b>に変数を登録",
+      "pro_f3": "<b>カスタムテーマ</b> · 環境ごとのカラー",
+      "pro_f4": "<b>Claude MCP 権限をアンロック</b>",
+      "pro_f5": "マスターキーによる安全なストレージ（Argon2id）",
+      "pro_f6": "オフラインライセンス認証",
+      "pro_f7": "今後のすべてのアップデートが<b>無料</b>",
+      "pro_f8": "優先メールサポート",
+      "dl_sub": "同じアプリ、2 つの方法。<b>無料</b>で入手して今すぐ始めて、好きなときにアプリ内で <b>Pro</b> をアンロック — 一度の支払いで、一生あなたのもの。",
+      "dl_free_head": "無料で始める",
+      "dl_note": "ボタンをクリックすると<b>インストーラーが直接ダウンロード</b>されます。Windows はまだコード署名されていないため SmartScreen が警告する場合があります — <b>詳細情報 → 実行</b>。macOS は近日公開。",
+      "dl_pro_head": "Pro でアンロック",
+      "dl_pro_price": "$59 · 買い切り",
+      "dl_pro_note": "無制限のプロジェクト &amp; 変数、Claude MCP 連携、カスタムカラー、買い切りアップデート。支払い後にライセンスキーがメールで届きます。<b>同じアプリ</b>の「Pro にアップグレード」に貼り付ければ即座にアンロック（オフライン認証）。",
+      "skip_link": "コンテンツへスキップ",
+      "mac_cs": "macOS 版は近日公開。",
+      "fp_unlock": "アンロック"
+    },
+    "zh": {
+      "hero_def": "<b>envyou</b> 是一款面向开发者的本地优先、加密环境变量管理器，仅在你的机器上（AES-256-GCM）存储你的 <code>.env</code> 密钥和 API 密钥，绝不上云——并通过 MCP 连接 Claude Desktop，只有在你逐次批准请求后，AI 才能读写环境变量。",
+      "hero_desc": "告别笨重的云端配置工具。envyou 是一款仅几 MB 的轻量桌面应用，将每个密钥<b>本地存储、AES-256 加密</b>。它还通过 MCP 连接 Claude Desktop，让 AI 直接读写你的环境变量。",
+      "demos_h2": "这就是你需要 envyou 的理由",
+      "demos_sub": "每天与 <code>.env</code> 的苦战——粘贴、比对环境、搜索、接入 AI——看这款应用如何在真实界面上让这一切消失。",
+      "di_cap": "<b>智能导入</b>——粘贴 <code>.env</code>、<code>export</code>、JSON 或 <code>process.env</code>，什么都行。保存前先预览新键、冲突和密钥。",
+      "diff_a": "仅 staging",
+      "diff_b": "仅 production",
+      "diff_diff": "值不同 ••••",
+      "diff_same": "相同",
+      "diff_cap": "<b>比对环境</b>——一眼看出 staging 与 production 之间缺失的键和变更的值。值默认遮盖；一键复制到另一侧。",
+      "pal_hint": "↑↓ 移动 · Enter 复制 · Esc 关闭",
+      "pal_cap": "<b>命令面板</b>——一个 <code>Ctrl+K</code> 即可仅用键盘触达项目、变量和操作。无需鼠标。",
+      "mcp_ask": "🤖 “api-server 的 DATABASE_URL 是什么？”",
+      "mcp_req": "⚠ envyou 批准请求",
+      "mcp_body": "Claude 想要读取 <b>DATABASE_URL</b>。",
+      "mcp_deny": "拒绝",
+      "mcp_allow": "允许",
+      "mcp_cap": "<b>必须由人类批准</b>，AI 才能看到密钥。每次读写都会弹出本地批准对话框——零云端泄露。",
+      "fp_projects": "项目",
+      "fp_vars": "变量",
+      "fp_colors": "自定义颜色",
+      "fp_unlimited": "无限 ✔",
+      "fp_cap": "<b>一次付款，$59——终身归你。</b>免费使用，触达上限时应用会把你直接带到这里。终身更新，无订阅。",
+      "pricing_sub": "一次购买，永久拥有。单笔付款永久解锁所有 Pro 功能。",
+      "free_note": "足以让你上手。",
+      "free_f1": "最多 <b>3 个项目</b>",
+      "free_f2": "每个项目 10 个变量",
+      "free_f3": "全局热键 · 始终置顶",
+      "free_f4": "本地 AES-256 加密",
+      "free_f5": "一键复制粘贴 <code>.env</code>",
+      "free_f6": "自定义主题 · 按环境配色",
+      "free_f7": "Claude MCP 集成",
+      "free_cta": "⬇ 免费下载",
+      "pro_price_sub": "/ 一次性，终身",
+      "pro_note": "无订阅。无额外费用。",
+      "pro_f1": "创建<b>无限</b>项目",
+      "pro_f2": "注册<b>无限</b>变量",
+      "pro_f3": "<b>自定义主题</b> · 按环境配色",
+      "pro_f4": "<b>解锁 Claude MCP 权限</b>",
+      "pro_f5": "主密钥安全存储（Argon2id）",
+      "pro_f6": "离线许可证激活",
+      "pro_f7": "所有未来更新<b>免费</b>",
+      "pro_f8": "优先邮件支持",
+      "dl_sub": "同一款应用，两种方式。<b>免费</b>获取立即开始，然后随时在应用内解锁 <b>Pro</b>——一次付款，终身归你。",
+      "dl_free_head": "免费开始",
+      "dl_note": "点击按钮即<b>直接下载安装程序</b>。Windows 尚未代码签名，SmartScreen 可能会警告——<b>更多信息 → 仍要运行</b>。macOS 即将推出。",
+      "dl_pro_head": "用 Pro 解锁",
+      "dl_pro_price": "$59 · 终身",
+      "dl_pro_note": "无限项目和变量、Claude MCP 集成、自定义颜色、终身更新。付款后许可证密钥会通过邮件发给你；将它粘贴到<b>同一款应用</b>的“升级到 Pro”中即可即时解锁（离线激活）。",
+      "skip_link": "跳到内容",
+      "mac_cs": "macOS 版本即将推出。",
+      "fp_unlock": "解锁"
+    },
+    "th": {
+      "hero_def": "<b>envyou</b> คือโปรแกรมจัดการตัวแปรสภาพแวดล้อมแบบเข้ารหัสที่ทำงานบนเครื่องเป็นหลักสำหรับนักพัฒนา เก็บความลับ <code>.env</code> และคีย์ API ไว้บนเครื่องของคุณเท่านั้น (AES-256-GCM) ไม่เคยขึ้นคลาวด์ — และเชื่อมต่อกับ Claude Desktop ผ่าน MCP เพื่อให้ AI อ่านและเขียนตัวแปรสภาพแวดล้อมได้ก็ต่อเมื่อคุณอนุมัติแต่ละคำขอแล้วเท่านั้น",
+      "hero_desc": "เลิกใช้เครื่องมือตั้งค่าคลาวด์อันหนักอึ้งได้เลย envyou เป็นแอปเดสก์ท็อปน้ำหนักเบาเพียงไม่กี่ MB ที่เก็บทุกคีย์แบบ <b>เข้ารหัสในเครื่องด้วย AES-256</b> และเชื่อมต่อกับ Claude Desktop ผ่าน MCP เพื่อให้ AI อ่านและเขียนตัวแปรสภาพแวดล้อมของคุณได้โดยตรง",
+      "demos_h2": "นี่คือเหตุผลที่คุณต้องมี envyou",
+      "demos_sub": "งาน <code>.env</code> จุกจิกประจำวัน — วางโค้ด เทียบสภาพแวดล้อม ค้นหา ต่อ AI — และวิธีที่แอปทำให้มันหายไป แสดงบนหน้าจอจริง",
+      "di_cap": "<b>นำเข้าอัจฉริยะ</b> — วาง <code>.env</code>, <code>export</code>, JSON หรือ <code>process.env</code> อะไรก็ได้ ดูตัวอย่างคีย์ใหม่ ความขัดแย้ง และความลับก่อนบันทึก",
+      "diff_a": "staging เท่านั้น",
+      "diff_b": "production เท่านั้น",
+      "diff_diff": "ค่าต่างกัน ••••",
+      "diff_same": "เหมือนกัน",
+      "diff_cap": "<b>เทียบสภาพแวดล้อม</b> — เห็นคีย์ที่ขาดและค่าที่เปลี่ยนระหว่าง staging กับ production ได้ในพริบตา ค่าถูกปิดบังโดยค่าเริ่มต้น คัดลอกไปอีกฝั่งได้ในคลิกเดียว",
+      "pal_hint": "↑↓ เลื่อน · Enter คัดลอก · Esc ปิด",
+      "pal_cap": "<b>Command Palette</b> — <code>Ctrl+K</code> เดียวเข้าถึงโปรเจกต์ ตัวแปร และการกระทำได้ด้วยคีย์บอร์ดล้วน ไม่ต้องใช้เมาส์",
+      "mcp_ask": "🤖 “DATABASE_URL ของ api-server คืออะไร?”",
+      "mcp_req": "⚠ คำขออนุมัติจาก envyou",
+      "mcp_body": "Claude ต้องการอ่าน <b>DATABASE_URL</b>",
+      "mcp_deny": "ปฏิเสธ",
+      "mcp_allow": "อนุญาต",
+      "mcp_cap": "<b>มนุษย์ต้องอนุมัติ</b> ก่อนที่ AI จะเห็นความลับ ทุกการอ่านและเขียนจะเด้งกล่องอนุมัติในเครื่อง — ไม่รั่วขึ้นคลาวด์",
+      "fp_projects": "โปรเจกต์",
+      "fp_vars": "ตัวแปร",
+      "fp_colors": "สีที่กำหนดเอง",
+      "fp_unlimited": "ไม่จำกัด ✔",
+      "fp_unlock": "ปลดล็อก",
+      "fp_cap": "<b>จ่ายครั้งเดียว $59 — เป็นของคุณตลอดชีพ</b> ใช้ฟรีได้ และเมื่อชนขีดจำกัด แอปจะพาคุณมาที่นี่เลย อัปเดตตลอดชีพ ไม่มีค่าสมาชิก",
+      "pricing_sub": "ซื้อครั้งเดียว เก็บไว้ตลอดไป จ่ายเพียงครั้งเดียวปลดล็อกทุกฟีเจอร์ Pro อย่างถาวร",
+      "free_note": "เพียงพอสำหรับเริ่มต้น",
+      "free_f1": "สูงสุด <b>3 โปรเจกต์</b>",
+      "free_f2": "10 ตัวแปรต่อโปรเจกต์",
+      "free_f3": "ฮอตคีย์ทั่วระบบ · ปักหมุดบนสุดเสมอ",
+      "free_f4": "เข้ารหัส AES-256 ในเครื่อง",
+      "free_f5": "คัดลอก &amp; วาง <code>.env</code> ในคลิกเดียว",
+      "free_f6": "ธีมกำหนดเอง · สีแยกตามสภาพแวดล้อม",
+      "free_f7": "เชื่อมต่อ Claude MCP",
+      "free_cta": "⬇ ดาวน์โหลดฟรี",
+      "pro_price_sub": "/ จ่ายครั้งเดียว ตลอดชีพ",
+      "pro_note": "ไม่มีค่าสมาชิก ไม่มีค่าใช้จ่ายเพิ่ม",
+      "pro_f1": "สร้างโปรเจกต์ได้ <b>ไม่จำกัด</b>",
+      "pro_f2": "ลงทะเบียนตัวแปรได้ <b>ไม่จำกัด</b>",
+      "pro_f3": "<b>ธีมกำหนดเอง</b> · สีแยกตามสภาพแวดล้อม",
+      "pro_f4": "<b>ปลดล็อกสิทธิ์ Claude MCP</b>",
+      "pro_f5": "ที่เก็บปลอดภัยด้วยมาสเตอร์คีย์ (Argon2id)",
+      "pro_f6": "เปิดใช้งานไลเซนส์แบบออฟไลน์",
+      "pro_f7": "อัปเดตในอนาคตทั้งหมด <b>ฟรี</b>",
+      "pro_f8": "ซัพพอร์ตทางอีเมลแบบเร่งด่วน",
+      "dl_sub": "แอปเดียวกัน สองทางเลือก คว้ามาใช้ <b>ฟรี</b> แล้วเริ่มได้เลย จากนั้นปลดล็อก <b>Pro</b> ในแอปเมื่อไหร่ก็ได้ — จ่ายครั้งเดียว เป็นของคุณตลอดชีพ",
+      "dl_free_head": "เริ่มฟรี",
+      "dl_note": "คลิกปุ่มจะ <b>ดาวน์โหลดตัวติดตั้งโดยตรง</b> เวอร์ชัน Windows ยังไม่ได้เซ็นโค้ด ดังนั้น SmartScreen อาจเตือน — <b>ข้อมูลเพิ่มเติม → เรียกใช้อยู่ดี</b> เวอร์ชัน macOS กำลังจะมาเร็ว ๆ นี้",
+      "dl_pro_head": "ปลดล็อกด้วย Pro",
+      "dl_pro_price": "$59 · ตลอดชีพ",
+      "dl_pro_note": "โปรเจกต์ &amp; ตัวแปรไม่จำกัด เชื่อมต่อ Claude MCP สีที่กำหนดเอง อัปเดตตลอดชีพ หลังชำระเงินคีย์ไลเซนส์จะถูกส่งไปที่อีเมลของคุณ วางลงใน “อัปเกรดเป็น Pro” ใน <b>แอปเดียวกัน</b> แล้วมันจะปลดล็อกทันที (เปิดใช้งานแบบออฟไลน์)",
+      "skip_link": "ข้ามไปยังเนื้อหา",
+      "mac_cs": "เวอร์ชัน macOS กำลังจะมาเร็ว ๆ นี้"
+    },
+    "vi": {
+      "hero_def": "<b>envyou</b> là trình quản lý biến môi trường mã hóa, ưu tiên cục bộ dành cho lập trình viên, lưu các secret <code>.env</code> và API key chỉ trên máy của bạn (AES-256-GCM), không bao giờ lên cloud — và kết nối với Claude Desktop qua MCP để AI chỉ đọc và ghi biến môi trường sau khi bạn duyệt từng yêu cầu.",
+      "hero_desc": "Không còn những công cụ cấu hình cloud nặng nề. envyou là ứng dụng desktop nhẹ chỉ vài MB, lưu mọi key <b>cục bộ, mã hóa AES-256</b>. Và nó kết nối với Claude Desktop qua MCP để AI đọc và ghi biến môi trường của bạn trực tiếp.",
+      "demos_h2": "Đây là lý do bạn cần envyou",
+      "demos_sub": "Công việc <code>.env</code> lặp đi lặp lại mỗi ngày — dán, so sánh các môi trường, tìm kiếm, kết nối AI — và cách ứng dụng khiến chúng biến mất, hiển thị trên màn hình thật.",
+      "di_cap": "<b>Nhập thông minh</b> — dán <code>.env</code>, <code>export</code>, JSON, hay <code>process.env</code>, bất cứ thứ gì. Xem trước key mới, xung đột và secret trước khi lưu.",
+      "diff_a": "chỉ staging",
+      "diff_b": "chỉ production",
+      "diff_diff": "giá trị khác nhau ••••",
+      "diff_same": "giống nhau",
+      "diff_cap": "<b>So sánh các môi trường</b> — phát hiện key thiếu và giá trị thay đổi giữa staging và production chỉ trong nháy mắt. Giá trị được ẩn mặc định; sao chép sang bên kia chỉ với một cú nhấp.",
+      "pal_hint": "↑↓ di chuyển · Enter sao chép · Esc đóng",
+      "pal_cap": "<b>Command Palette</b> — một <code>Ctrl+K</code> chạm tới các dự án, biến và thao tác chỉ bằng bàn phím. Không cần chuột.",
+      "mcp_ask": "🤖 “DATABASE_URL cho api-server là gì?”",
+      "mcp_req": "⚠ yêu cầu duyệt của envyou",
+      "mcp_body": "Claude muốn đọc <b>DATABASE_URL</b>.",
+      "mcp_deny": "Từ chối",
+      "mcp_allow": "Cho phép",
+      "mcp_cap": "<b>Con người phải duyệt</b> trước khi AI thấy một secret. Mọi lần đọc và ghi đều bật hộp thoại duyệt cục bộ — không rò rỉ cloud.",
+      "fp_projects": "Dự án",
+      "fp_vars": "Biến",
+      "fp_colors": "Màu tùy chỉnh",
+      "fp_unlimited": "Không giới hạn ✔",
+      "fp_unlock": "mở khóa",
+      "fp_cap": "<b>Một lần thanh toán, $59 — của bạn trọn đời.</b> Dùng miễn phí, và khi chạm giới hạn, ứng dụng đưa bạn ngay đến đây. Cập nhật trọn đời, không thuê bao.",
+      "pricing_sub": "Mua một lần, giữ mãi mãi. Một lần thanh toán mở khóa vĩnh viễn mọi tính năng Pro.",
+      "free_note": "Đủ để bắt đầu.",
+      "free_f1": "Tối đa <b>3 dự án</b>",
+      "free_f2": "10 biến mỗi dự án",
+      "free_f3": "Phím tắt toàn cục · Luôn nổi trên cùng",
+      "free_f4": "Mã hóa AES-256 cục bộ",
+      "free_f5": "Sao chép &amp; dán <code>.env</code> một cú nhấp",
+      "free_f6": "Giao diện tùy chỉnh · màu theo từng môi trường",
+      "free_f7": "Tích hợp Claude MCP",
+      "free_cta": "⬇ Tải miễn phí",
+      "pro_price_sub": "/ một lần, trọn đời",
+      "pro_note": "Không thuê bao. Không phí phát sinh.",
+      "pro_f1": "Tạo <b>không giới hạn</b> dự án",
+      "pro_f2": "Đăng ký <b>không giới hạn</b> biến",
+      "pro_f3": "<b>Giao diện tùy chỉnh</b> · màu theo từng môi trường",
+      "pro_f4": "<b>Mở khóa quyền Claude MCP</b>",
+      "pro_f5": "Lưu trữ bảo mật bằng master-key (Argon2id)",
+      "pro_f6": "Kích hoạt giấy phép offline",
+      "pro_f7": "Mọi cập nhật tương lai <b>miễn phí</b>",
+      "pro_f8": "Hỗ trợ email ưu tiên",
+      "dl_sub": "Cùng một ứng dụng, hai cách. Lấy <b>miễn phí</b> và bắt đầu ngay, rồi mở khóa <b>Pro</b> ngay trong ứng dụng bất cứ khi nào bạn muốn — một lần thanh toán, của bạn trọn đời.",
+      "dl_free_head": "Bắt đầu miễn phí",
+      "dl_note": "Nhấp một nút sẽ <b>tải trình cài đặt trực tiếp</b>. Windows chưa được ký mã, nên SmartScreen có thể cảnh báo — <b>More info → Run anyway</b>. macOS sắp ra mắt.",
+      "dl_pro_head": "Mở khóa với Pro",
+      "dl_pro_price": "$59 · trọn đời",
+      "dl_pro_note": "Không giới hạn dự án &amp; biến, Tích hợp Claude MCP, màu tùy chỉnh, cập nhật trọn đời. Sau khi thanh toán, khóa giấy phép sẽ được gửi qua email cho bạn; dán vào “Upgrade to Pro” trong <b>chính ứng dụng đó</b> và nó mở khóa tức thì (kích hoạt offline).",
+      "skip_link": "Chuyển đến nội dung",
+      "mac_cs": "Bản macOS sắp ra mắt."
+    },
+    "hi": {
+      "hero_def": "<b>envyou</b> डेवलपर्स के लिए एक लोकल-फर्स्ट, एन्क्रिप्टेड एनवायरनमेंट वेरिएबल मैनेजर है जो आपके <code>.env</code> सीक्रेट्स और API कीज़ को केवल आपकी मशीन पर स्टोर करता है (AES-256-GCM), क्लाउड में कभी नहीं — और MCP के ज़रिए Claude Desktop से जुड़ता है ताकि AI एनवायरनमेंट वेरिएबल्स तभी पढ़ और लिख सके जब आप हर अनुरोध को मंज़ूरी दें।",
+      "hero_desc": "अब कोई भारी क्लाउड कॉन्फ़िग टूल नहीं। envyou सिर्फ़ कुछ MB का एक हल्का डेस्कटॉप ऐप है जो हर की को <b>लोकली, AES-256 एन्क्रिप्टेड</b> स्टोर करता है। और यह MCP के ज़रिए Claude Desktop से जुड़ता है ताकि AI आपके एनवायरनमेंट वेरिएबल्स को सीधे पढ़ और लिख सके।",
+      "demos_h2": "इसीलिए आपको envyou की ज़रूरत है",
+      "demos_sub": "रोज़मर्रा की <code>.env</code> मशक्कत — पेस्ट करना, एनवायरनमेंट्स की तुलना करना, खोजना, AI को जोड़ना — और ऐप इसे कैसे गायब कर देता है, असली स्क्रीन्स पर दिखाया गया।",
+      "di_cap": "<b>स्मार्ट इम्पोर्ट</b> — <code>.env</code>, <code>export</code>, JSON, या <code>process.env</code>, कुछ भी पेस्ट करें। सेव करने से पहले नई कीज़, टकराव और सीक्रेट्स का प्रीव्यू देखें।",
+      "diff_a": "केवल staging",
+      "diff_b": "केवल production",
+      "diff_diff": "मान अलग हैं ••••",
+      "diff_same": "समान",
+      "diff_cap": "<b>एनवायरनमेंट्स की तुलना करें</b> — staging और production के बीच गायब कीज़ और बदले हुए मान एक नज़र में पकड़ें। मान डिफ़ॉल्ट रूप से छिपे रहते हैं; एक क्लिक में दूसरी तरफ़ कॉपी करें।",
+      "pal_hint": "↑↓ चलाएँ · Enter कॉपी · Esc बंद करें",
+      "pal_cap": "<b>कमांड पैलेट</b> — एक <code>Ctrl+K</code> से केवल कीबोर्ड के ज़रिए प्रोजेक्ट्स, वेरिएबल्स और ऐक्शन्स तक पहुँचें। माउस की ज़रूरत नहीं।",
+      "mcp_ask": "🤖 “api-server के लिए DATABASE_URL क्या है?”",
+      "mcp_req": "⚠ envyou मंज़ूरी अनुरोध",
+      "mcp_body": "Claude <b>DATABASE_URL</b> पढ़ना चाहता है।",
+      "mcp_deny": "अस्वीकार करें",
+      "mcp_allow": "अनुमति दें",
+      "mcp_cap": "<b>किसी इंसान को मंज़ूरी देनी होगी</b> इससे पहले कि AI किसी सीक्रेट को देखे। हर रीड और राइट पर एक लोकल मंज़ूरी डायलॉग खुलता है — कोई क्लाउड लीक नहीं।",
+      "fp_projects": "प्रोजेक्ट्स",
+      "fp_vars": "वेरिएबल्स",
+      "fp_colors": "कस्टम रंग",
+      "fp_unlimited": "असीमित ✔",
+      "fp_unlock": "अनलॉक करें",
+      "fp_cap": "<b>एक भुगतान, $59 — जीवन भर के लिए आपका।</b> इसे मुफ़्त इस्तेमाल करें, और जब आप किसी सीमा पर पहुँचें तो ऐप आपको सीधे यहाँ ले आता है। आजीवन अपडेट, कोई सदस्यता नहीं।",
+      "pricing_sub": "एक बार खरीदें, हमेशा के लिए रखें। एक ही भुगतान हर Pro फ़ीचर को स्थायी रूप से अनलॉक कर देता है।",
+      "free_note": "शुरू करने के लिए काफ़ी।",
+      "free_f1": "<b>3 प्रोजेक्ट्स</b> तक",
+      "free_f2": "प्रति प्रोजेक्ट 10 वेरिएबल्स",
+      "free_f3": "ग्लोबल हॉटकी · हमेशा सबसे ऊपर",
+      "free_f4": "लोकल AES-256 एन्क्रिप्शन",
+      "free_f5": "वन-क्लिक <code>.env</code> कॉपी &amp; पेस्ट",
+      "free_f6": "कस्टम थीम्स · प्रति-एनवायरनमेंट रंग",
+      "free_f7": "Claude MCP एकीकरण",
+      "free_cta": "⬇ मुफ़्त डाउनलोड",
+      "pro_price_sub": "/ एक बार, आजीवन",
+      "pro_note": "कोई सदस्यता नहीं। कोई अतिरिक्त शुल्क नहीं।",
+      "pro_f1": "<b>असीमित</b> प्रोजेक्ट्स बनाएँ",
+      "pro_f2": "<b>असीमित</b> वेरिएबल्स रजिस्टर करें",
+      "pro_f3": "<b>कस्टम थीम्स</b> · प्रति-एनवायरनमेंट रंग",
+      "pro_f4": "<b>Claude MCP अनुमतियाँ अनलॉक करें</b>",
+      "pro_f5": "मास्टर-की सुरक्षित स्टोरेज (Argon2id)",
+      "pro_f6": "ऑफ़लाइन लाइसेंस सक्रियण",
+      "pro_f7": "सभी भावी अपडेट <b>मुफ़्त</b>",
+      "pro_f8": "प्राथमिकता ईमेल सहायता",
+      "dl_sub": "वही ऐप, दो तरीके। इसे <b>मुफ़्त</b> लें और अभी शुरू करें, फिर जब चाहें ऐप के अंदर ही <b>Pro</b> अनलॉक करें — एक भुगतान, जीवन भर के लिए आपका।",
+      "dl_free_head": "मुफ़्त शुरू करें",
+      "dl_note": "किसी बटन पर क्लिक करने से <b>इंस्टॉलर सीधे डाउनलोड होता है</b>। Windows अभी कोड-साइन्ड नहीं है, इसलिए SmartScreen चेतावनी दे सकता है — <b>More info → Run anyway</b>। macOS जल्द आ रहा है।",
+      "dl_pro_head": "Pro के साथ अनलॉक करें",
+      "dl_pro_price": "$59 · आजीवन",
+      "dl_pro_note": "असीमित प्रोजेक्ट्स &amp; वेरिएबल्स, Claude MCP एकीकरण, कस्टम रंग, आजीवन अपडेट। भुगतान के बाद आपको एक लाइसेंस की ईमेल की जाती है; इसे <b>उसी ऐप</b> में “Upgrade to Pro” में पेस्ट करें और यह तुरंत अनलॉक हो जाता है (ऑफ़लाइन सक्रियण)।",
+      "skip_link": "सामग्री पर जाएँ",
+      "mac_cs": "macOS बिल्ड जल्द आ रहा है।"
+    }
+  };
+  for (var _L3 in I18N3){ for (var _K3 in I18N3[_L3]){ (I18N[_L3]=I18N[_L3]||{})[_K3]=I18N3[_L3][_K3]; } }
+  // BCP-47 / OpenGraph locale for each UI language.
+  var OG_LOCALE = { en:"en_US", ko:"ko_KR", ja:"ja_JP", zh:"zh_CN", th:"th_TH", vi:"vi_VN", hi:"hi_IN" };
+  var SITE_BASE = "https://envyou.dev/";
+  var CUR = I18N.en; // current dictionary, used by non-[data-i18n] JS strings
+  function applyLang(l, updateUrl){
     var d = I18N[l] || I18N.en;
+    CUR = d;
     $$("[data-i18n]").forEach(function(n){
       var k = n.getAttribute("data-i18n");
       if (d[k] != null) n.innerHTML = d[k];
     });
     document.documentElement.setAttribute("lang", l);
+    // Keep canonical + og:locale in sync with the rendered language so each
+    // crawlable ?lang= URL self-canonicalizes and matches its hreflang entry.
+    var canonHref = (l === "en") ? SITE_BASE : SITE_BASE + "?lang=" + l;
+    var canon = $('link[rel="canonical"]'); if (canon) canon.setAttribute("href", canonHref);
+    var ogl = $('meta[property="og:locale"]'); if (ogl && OG_LOCALE[l]) ogl.setAttribute("content", OG_LOCALE[l]);
     try { localStorage.setItem("envyou_lang", l); } catch(e){}
     var sel = $("#lang"); if (sel) sel.value = l;
+    if (updateUrl && window.history && history.replaceState) {
+      try {
+        var u = new URL(window.location.href);
+        if (l === "en") u.searchParams.delete("lang"); else u.searchParams.set("lang", l);
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      } catch(e){}
+    }
   }
   (function initLang(){
+    var qp = null;
+    try { qp = new URL(window.location.href).searchParams.get("lang"); } catch(e){}
+    if (qp) qp = qp.slice(0,2).toLowerCase();
     var saved = null; try { saved = localStorage.getItem("envyou_lang"); } catch(e){}
-    var l = saved || (navigator.language || "en").slice(0,2).toLowerCase();
+    var l = qp || saved || (navigator.language || "en").slice(0,2).toLowerCase();
     if (!I18N[l]) l = "en";
     var sel = $("#lang");
-    if (sel) sel.addEventListener("change", function(){ applyLang(sel.value); });
-    applyLang(l);
+    if (sel) sel.addEventListener("change", function(){ applyLang(sel.value, true); });
+    applyLang(l, false);
   })();
 })();
 </script>
