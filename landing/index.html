@@ -1015,6 +1015,25 @@ footer.foot{
   </div>
 </div>
 
+<!-- ===== License-email modal (shown before Paddle checkout) ===== -->
+<div class="overlay" id="emailOverlay">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="emTitle" style="width:420px">
+    <div class="d-title"><span id="emTitle">✉ <span data-i18n="em_title">Where should we send your license?</span></span><span class="x" id="emX">✕</span></div>
+    <div style="padding:18px">
+      <p style="font-size:13px;margin-bottom:12px" data-i18n="em_intro">Your lifetime license code is emailed here. Use the <b>same email</b> when you activate Pro in the app.</p>
+      <label style="font-size:12px;display:block;margin-bottom:3px" data-i18n="em_label">License email</label>
+      <input id="emEmail" type="email" autocomplete="email" placeholder="you@example.com" style="width:100%;padding:8px;font-family:inherit;font-size:14px;margin-bottom:10px;border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);border-right:2px solid var(--white);border-bottom:2px solid var(--white)">
+      <label style="font-size:12px;display:block;margin-bottom:3px" data-i18n="em_label2">Confirm license email</label>
+      <input id="emEmail2" type="email" autocomplete="email" placeholder="you@example.com" style="width:100%;padding:8px;font-family:inherit;font-size:14px;border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);border-right:2px solid var(--white);border-bottom:2px solid var(--white)">
+      <p id="emErr" style="color:var(--red);font-size:12px;min-height:16px;margin-top:6px"></p>
+    </div>
+    <div class="d-actions" style="justify-content:space-between">
+      <button class="btn" id="emCancel" data-i18n="em_cancel">Cancel</button>
+      <button class="btn primary" id="emBuy" data-i18n="em_buy">Continue to payment →</button>
+    </div>
+  </div>
+</div>
+
 <!-- Paddle Billing checkout (client-side token is public; safe to embed) -->
 <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 <script>
@@ -1028,9 +1047,49 @@ footer.foot{
   var PRICE_LIFETIME = "pri_01kwxn8b9q229nmga202k1pc60"; // $59 one-time lifetime
   if (window.Paddle) { Paddle.Initialize({ token: PADDLE_TOKEN }); }
   function openCheckout(priceId){
-    if (!window.Paddle) { location.href = "mailto:ceo@eternalsix.com?subject=envyou%20Pro"; return; }
-    Paddle.Checkout.open({ items:[{ priceId: priceId, quantity: 1 }] });
+    // Collect + confirm the license email FIRST so the buyer knows exactly where
+    // the code goes, and pass it to Paddle (customer prefill + custom_data) so
+    // the webhook emails the code to that address.
+    collectEmailThen(function(email){
+      if (!window.Paddle) {
+        location.href = "mailto:ceo@eternalsix.com?subject=envyou%20Pro&body="
+          + encodeURIComponent("I'd like to buy envyou Pro. License email: " + email);
+        return;
+      }
+      Paddle.Checkout.open({
+        items: [{ priceId: priceId, quantity: 1 }],
+        customer: { email: email },
+        customData: { license_email: email },
+        settings: { successUrl: "https://envyou.dev/success" }
+      });
+    });
   }
+
+  // ---- License-email modal ----
+  var emailOverlay = $("#emailOverlay");
+  var pendingBuy = null;
+  function collectEmailThen(cb){
+    pendingBuy = cb;
+    $("#emEmail").value = ""; $("#emEmail2").value = ""; $("#emErr").textContent = "";
+    emailOverlay.classList.add("show");
+    $("#emEmail").focus();
+  }
+  function closeEmailModal(){ emailOverlay.classList.remove("show"); pendingBuy = null; }
+  var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  function submitEmail(){
+    var a = ($("#emEmail").value||"").trim(), b = ($("#emEmail2").value||"").trim();
+    if (!EMAIL_RE.test(a)) { $("#emErr").textContent = "Please enter a valid email address."; return; }
+    if (a.toLowerCase() !== b.toLowerCase()) { $("#emErr").textContent = "The two emails don't match."; return; }
+    var cb = pendingBuy;
+    emailOverlay.classList.remove("show");
+    pendingBuy = null;
+    if (typeof cb === "function") cb(a);
+  }
+  $("#emBuy").addEventListener("click", submitEmail);
+  $("#emCancel").addEventListener("click", closeEmailModal);
+  $("#emX").addEventListener("click", closeEmailModal);
+  emailOverlay.addEventListener("click", function(e){ if (e.target === emailOverlay) closeEmailModal(); });
+  $("#emEmail2").addEventListener("keydown", function(e){ if (e.key === "Enter") submitEmail(); });
 
   // Footer year
   $("#year").textContent=new Date().getFullYear();
@@ -1607,6 +1666,17 @@ footer.foot{
     }
   };
   for (var _L3 in I18N3){ for (var _K3 in I18N3[_L3]){ (I18N[_L3]=I18N[_L3]||{})[_K3]=I18N3[_L3][_K3]; } }
+  // License-email checkout modal strings.
+  var I18N_EM = {
+    en:{em_title:"Where should we send your license?", em_intro:"Your lifetime license code is emailed here. Use the <b>same email</b> when you activate Pro in the app.", em_label:"License email", em_label2:"Confirm license email", em_cancel:"Cancel", em_buy:"Continue to payment →"},
+    ko:{em_title:"라이선스를 어디로 보낼까요?", em_intro:"평생 라이선스 코드가 이 이메일로 발송됩니다. 앱에서 Pro를 활성화할 때 <b>같은 이메일</b>을 사용하세요.", em_label:"라이선스 이메일", em_label2:"라이선스 이메일 확인", em_cancel:"취소", em_buy:"결제로 계속 →"},
+    ja:{em_title:"ライセンスの送信先は？", em_intro:"買い切りライセンスコードはこのメールに届きます。アプリでPro有効化時も<b>同じメール</b>を使ってください。", em_label:"ライセンスメール", em_label2:"ライセンスメール（確認）", em_cancel:"キャンセル", em_buy:"支払いへ進む →"},
+    zh:{em_title:"把许可证发到哪里？", em_intro:"永久许可证代码将发送到此邮箱。在应用中激活 Pro 时请使用<b>相同邮箱</b>。", em_label:"许可证邮箱", em_label2:"确认许可证邮箱", em_cancel:"取消", em_buy:"继续支付 →"},
+    th:{em_title:"ส่งไลเซนส์ไปที่ไหนดี?", em_intro:"โค้ดไลเซนส์ตลอดชีพจะส่งไปที่อีเมลนี้ ใช้<b>อีเมลเดียวกัน</b>เมื่อเปิดใช้งาน Pro ในแอป", em_label:"อีเมลไลเซนส์", em_label2:"ยืนยันอีเมลไลเซนส์", em_cancel:"ยกเลิก", em_buy:"ไปที่การชำระเงิน →"},
+    vi:{em_title:"Gửi giấy phép tới đâu?", em_intro:"Mã giấy phép trọn đời sẽ được gửi tới email này. Dùng <b>cùng email</b> khi kích hoạt Pro trong ứng dụng.", em_label:"Email giấy phép", em_label2:"Xác nhận email giấy phép", em_cancel:"Hủy", em_buy:"Tiếp tục thanh toán →"},
+    hi:{em_title:"लाइसेंस कहाँ भेजें?", em_intro:"आजीवन लाइसेंस कोड इसी ईमेल पर भेजा जाएगा। ऐप में Pro सक्रिय करते समय <b>वही ईमेल</b> उपयोग करें।", em_label:"लाइसेंस ईमेल", em_label2:"लाइसेंस ईमेल की पुष्टि करें", em_cancel:"रद्द करें", em_buy:"भुगतान जारी रखें →"}
+  };
+  for (var _LE in I18N_EM){ for (var _KE in I18N_EM[_LE]){ (I18N[_LE]=I18N[_LE]||{})[_KE]=I18N_EM[_LE][_KE]; } }
   // BCP-47 / OpenGraph locale for each UI language.
   var OG_LOCALE = { en:"en_US", ko:"ko_KR", ja:"ja_JP", zh:"zh_CN", th:"th_TH", vi:"vi_VN", hi:"hi_IN" };
   var SITE_BASE = "https://envyou.dev/";

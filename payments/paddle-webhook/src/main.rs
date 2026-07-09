@@ -473,13 +473,26 @@ fn handle_transaction(cfg: &Config, agent: &ureq::Agent, event: &Value) -> Resul
     Ok(format!("license issued to {email}"))
 }
 
-/// Look up the buyer's email — prefer the inline customer object, else Paddle API.
+/// Look up the buyer's email. Prefer the `license_email` the buyer typed on the
+/// landing page (carried in `custom_data`) so the code goes exactly where they
+/// expect, then the inline customer object, then the Paddle API.
 fn customer_email(cfg: &Config, agent: &ureq::Agent, data: &Value) -> Result<String, HErr> {
-    if let Some(email) = data
+    let inline = data
         .get("customer")
         .and_then(|c| c.get("email"))
+        .and_then(Value::as_str);
+    if let Some(license_email) = data
+        .get("custom_data")
+        .and_then(|c| c.get("license_email"))
         .and_then(Value::as_str)
+        .filter(|e| e.contains('@'))
     {
+        if inline.is_some_and(|c| !c.eq_ignore_ascii_case(license_email)) {
+            eprintln!("note: custom_data.license_email differs from Paddle customer email; using custom_data");
+        }
+        return Ok(license_email.to_string());
+    }
+    if let Some(email) = inline {
         return Ok(email.to_string());
     }
     let customer_id = data
