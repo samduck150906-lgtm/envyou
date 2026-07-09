@@ -46,25 +46,33 @@ pub const PRODUCT: &str = "envyou";
 /// Base64 (standard) of the 32-byte Ed25519 **public** key used to verify
 /// licenses.
 ///
-/// Ships as an unconfigured placeholder so the build fails closed. Replace this
-/// with your real public key (see `README.md` → *License model*) before
-/// enabling paid activation. NEVER put the matching private key anywhere in this
-/// repo.
-pub const LICENSE_PUBLIC_KEY_B64: &str = "nsJ4J+OMAg5kjuvCVNcsMdld5i8A+2ZqPyKTq0sCV6Y=";
+/// This is the production public key; its private half lives only in the
+/// license issuer's secret store (Railway `ENVYOU_SIGNING_KEY_B64`), never in
+/// this repo. To rotate, generate a new keypair with the offline `license_tool`
+/// and replace this value, then run `license_tool checkkey` to confirm the new
+/// seed matches. Set it back to [`UNCONFIGURED_PUBLIC_KEY_B64`] (or empty) to
+/// force the build closed.
+pub const LICENSE_PUBLIC_KEY_B64: &str = "EAEkl5eCcd6cnEXb3Ij7DlVIu6BE2/6wxiR/kNM2qEo=";
 
-/// The exact placeholder value shipped above. While `LICENSE_PUBLIC_KEY_B64`
-/// still equals this, the build is treated as **unconfigured** and every
-/// activation fails closed — regardless of whether the placeholder happens to
-/// decode to a valid Ed25519 point (it does, so we cannot rely on a decode
-/// failure to detect the unconfigured state).
-const UNCONFIGURED_PUBLIC_KEY_B64: &str = "nsJ4J+OMAg5kjuvCVNcsMdld5i8A+2ZqPyKTq0sCV6Y=";
+/// Sentinel meaning "no license key configured yet". While
+/// [`LICENSE_PUBLIC_KEY_B64`] equals this (or is empty), the build **fails
+/// closed** and rejects every activation. It is intentionally not valid base64
+/// so it can never collide with a real 32-byte key.
+const UNCONFIGURED_PUBLIC_KEY_B64: &str = "REPLACE_WITH_YOUR_ED25519_PUBLIC_KEY_B64";
 
 /// Whether this build ships a real (non-placeholder, non-empty) license public
 /// key. The offline `license_tool checkkey` command and the app can surface this
 /// to avoid shipping a build that either rejects every real license or would
 /// accept a forgeable one.
 pub fn is_license_key_configured() -> bool {
-    let k = LICENSE_PUBLIC_KEY_B64.trim();
+    is_configured_key(LICENSE_PUBLIC_KEY_B64)
+}
+
+/// Value-level check used by [`is_license_key_configured`] and
+/// [`verifying_key_configured`]; a standalone fn so tests can exercise the
+/// fail-closed logic without mutating the shipped constant.
+fn is_configured_key(key_b64: &str) -> bool {
+    let k = key_b64.trim();
     !k.is_empty() && k != UNCONFIGURED_PUBLIC_KEY_B64
 }
 
@@ -117,19 +125,23 @@ pub fn is_well_formed(license: &str) -> bool {
             .unwrap_or(false)
 }
 
-/// Decode the embedded verification key. Fails closed while the shipped
-/// placeholder is still in place (detected by value, not by hoping it fails to
-/// decode — it decodes fine), so production activation is rejected until a real
-/// key is configured.
+/// Decode the embedded verification key, failing closed when unconfigured.
 fn embedded_verifying_key() -> Result<VerifyingKey> {
-    if !is_license_key_configured() {
+    verifying_key_configured(LICENSE_PUBLIC_KEY_B64)
+}
+
+/// Decode `key_b64` into a verifying key, but fail closed when it is the
+/// unconfigured sentinel or empty (detected by value, not by hoping it fails to
+/// decode). Parameterised so the fail-closed path is unit-testable.
+fn verifying_key_configured(key_b64: &str) -> Result<VerifyingKey> {
+    if !is_configured_key(key_b64) {
         return Err(Error::License(
-            "license public key is not configured in this build (still the shipped placeholder); \
+            "license public key is not configured in this build (still the placeholder); \
              set LICENSE_PUBLIC_KEY_B64 to your production public key"
                 .into(),
         ));
     }
-    verifying_key_from_b64(LICENSE_PUBLIC_KEY_B64).map_err(|_| {
+    verifying_key_from_b64(key_b64).map_err(|_| {
         Error::License(
             "configured LICENSE_PUBLIC_KEY_B64 is not a valid 32-byte Ed25519 public key".into(),
         )
@@ -436,25 +448,37 @@ mod tests {
     }
 
     #[test]
-    fn build_fails_closed_until_public_key_configured() {
-        // The shipped placeholder must be reported as unconfigured...
-        assert!(
-            !is_license_key_configured(),
-            "the shipped placeholder must count as unconfigured"
-        );
-        // ...and the failure must come from the *unconfigured* guard, not merely
-        // from a signature mismatch — otherwise a real-but-wrong key would look
-        // identical. A token signed by ANY key must be rejected with the
-        // not-configured error while the placeholder is in place.
-        let sk = test_signing_key();
-        let lic = issue(&sk, &pro_claims());
-        let err = activate(&lic, "machine-A").unwrap_err().to_string();
+    fn unconfigured_key_fails_closed() {
+        // The placeholder sentinel and empty are "unconfigured"; any real key is
+        // "configured". The check is by value so a decodable-but-placeholder key
+        // can't slip through.
+        assert!(!is_configured_key(UNCONFIGURED_PUBLIC_KEY_B64));
+        assert!(!is_configured_key(""));
+        assert!(!is_configured_key("   "));
+        assert!(is_configured_key(LICENSE_PUBLIC_KEY_B64));
+
+        // An unconfigured key rejects verification with the *not-configured*
+        // error — not a mere signature mismatch — so it can never accidentally
+        // accept a license.
+        let err = verifying_key_configured(UNCONFIGURED_PUBLIC_KEY_B64)
+            .unwrap_err()
+            .to_string();
         assert!(
             err.contains("not configured"),
             "expected the fail-closed 'not configured' error, got: {err}"
         );
-        assert!(!verify(&lic, "machine-A"));
-        assert!(!is_pro_active(Some(&lic), "machine-A"));
+        // The real configured key decodes fine through the same path.
+        assert!(verifying_key_configured(LICENSE_PUBLIC_KEY_B64).is_ok());
+    }
+
+    #[test]
+    fn shipped_build_has_a_real_license_key() {
+        // Guards against ever shipping the placeholder (which would reject every
+        // real license) or a compromised/empty key.
+        assert!(
+            is_license_key_configured(),
+            "shipped build must set LICENSE_PUBLIC_KEY_B64 to a real production key"
+        );
     }
 
     #[test]
