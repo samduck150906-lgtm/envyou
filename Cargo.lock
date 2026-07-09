@@ -1148,7 +1148,7 @@ dependencies = [
 
 [[package]]
 name = "envyou"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "envyou-core",
  "rfd 0.14.1",
@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "envyou-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "aes-gcm",
  "argon2",
