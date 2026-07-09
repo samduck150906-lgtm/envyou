@@ -10,7 +10,7 @@ use envyou_core::core::storage::Store;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 
 use commands::AppState;
@@ -20,7 +20,27 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            // `envyou://activate?email=…&code=…` links (from the purchase email /
+            // success page): surface the window and forward the URL to the
+            // frontend, which pre-fills the Activate Pro form.
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                // Best-effort runtime registration (prod registers via the
+                // installer; this covers dev + Linux).
+                let _ = app.deep_link().register_all();
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
+                    if let Some(w) = handle.get_webview_window("main") {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                        let _ = w.emit("deep-link-activate", urls);
+                    }
+                });
+            }
             // Decide the initial lock state. A password-protected (v2) vault
             // starts locked (None) and waits for the frontend to unlock it; a
             // device-bound or not-yet-created vault opens immediately.
@@ -80,7 +100,8 @@ pub fn run() {
             commands::upsert_variable,
             commands::delete_variable,
             commands::save_settings,
-            commands::activate_license,
+            commands::activate_pro,
+            commands::activate_certificate,
             commands::link_claude_desktop,
             commands::vault_status,
             commands::unlock_vault,

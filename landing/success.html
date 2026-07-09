@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thank you — envyou Pro</title>
+<meta name="robots" content="noindex" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='%23000080'/%3E%3Ctext x='4' y='13' font-family='monospace' font-size='11' fill='%23ffffff'%3Ee%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{--gray:#c0c0c0;--gray2:#d4d0c8;--navy:#000080;--white:#fff;--shadow:#808080;--teal:#008080;--green:#007000;--red:#aa0000}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--teal);color:#000;font-family:"Galmuri9","Courier New",monospace;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;padding:20px}
+  .win{max-width:560px;width:100%;background:var(--gray);
+    border-top:2px solid var(--white);border-left:2px solid var(--white);
+    border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow)}
+  .title{background:var(--navy);color:#fff;font-weight:bold;padding:4px 8px;letter-spacing:1px}
+  .body{padding:22px}
+  h1{font-size:22px;margin-bottom:8px}
+  p{font-size:14px;line-height:1.6;margin-bottom:12px;color:#151515}
+  .code-box{background:var(--white);border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+    border-right:2px solid var(--white);border-bottom:2px solid var(--white);padding:14px;text-align:center;margin:14px 0}
+  .code{font-size:24px;font-weight:bold;letter-spacing:2px;word-break:break-all}
+  .muted{color:#444;font-size:12px}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:15px;cursor:pointer;
+    text-decoration:none;color:#000;padding:10px 18px;
+    border-top:2px solid var(--white);border-left:2px solid var(--white);
+    border-right:2px solid var(--shadow);border-bottom:2px solid var(--shadow);background:var(--gray)}
+  .btn.primary{background:var(--gray2);font-weight:bold}
+  .btn:active{border-top:2px solid var(--shadow);border-left:2px solid var(--shadow);
+    border-right:2px solid var(--white);border-bottom:2px solid var(--white)}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--shadow);border-top-color:var(--navy);
+    border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hide{display:none}
+  ol{margin:0 0 12px 20px;font-size:13.5px;line-height:1.7}
+  code{background:var(--gray2);padding:0 4px}
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="title">■ envyou.dev — Purchase complete</div>
+  <div class="body">
+    <h1>🎉 Thank you!</h1>
+
+    <!-- Waiting for the webhook to issue the code -->
+    <div id="pending">
+      <p><span class="spinner"></span> Preparing your envyou Pro license…</p>
+      <p class="muted">This takes a few seconds. Your code is also being emailed to you.</p>
+    </div>
+
+    <!-- Code ready -->
+    <div id="ready" class="hide">
+      <p>Your <b>envyou Pro</b> lifetime license is ready. It's also on its way to your email.</p>
+      <div class="code-box">
+        <div class="muted">Your license code</div>
+        <div class="code" id="code">ENVY-…</div>
+      </div>
+      <div class="btns">
+        <button class="btn" id="copyBtn">⧉ Copy code</button>
+        <a class="btn primary" id="activateBtn" href="#">✦ Activate in envyou</a>
+      </div>
+      <p class="muted" style="margin:14px 0 6px">Don't have envyou yet? Download it, then open <b>Activate Pro</b> and enter your email + code.</p>
+      <div class="btns">
+        <a class="btn" id="winDl" href="https://github.com/samduck150906-lgtm/envyou/releases/download/v0.1.2/envyou_0.1.2_x64_en-US.msi" rel="noopener">⊞ Windows</a>
+        <a class="btn" id="linDl" href="https://github.com/samduck150906-lgtm/envyou/releases/download/v0.1.2/envyou_0.1.2_amd64.AppImage" rel="noopener">🐧 Linux</a>
+        <a class="btn" href="https://envyou.dev/#download">All downloads</a>
+      </div>
+    </div>
+
+    <!-- Fallback: code not found in time / no transaction id -->
+    <div id="fallback" class="hide">
+      <p>Your payment went through and your license code is being <b>emailed to you</b> now (check spam too).</p>
+      <ol>
+        <li>Open the email from envyou with your <code>ENVY-…</code> code.</li>
+        <li>Download envyou and click <b>Activate Pro</b>.</li>
+        <li>Enter your license email and the code.</li>
+      </ol>
+      <div class="btns">
+        <a class="btn primary" href="https://envyou.dev/#download">⬇ Download envyou</a>
+      </div>
+      <p class="muted" style="margin-top:12px">Didn't get the email within a few minutes? Contact <a href="mailto:ceo@eternalsix.com">ceo@eternalsix.com</a>.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var SUPABASE_URL = "https://dfslueqzfmvtpdencasw.supabase.co";
+  var SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmc2x1ZXF6Zm12dHBkZW5jYXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1ODMyMjcsImV4cCI6MjA5OTE1OTIyN30.nCyPRp_qBwYBtLHaawafheBaVSpi8Fi8gVhGmgJKjm0";
+  var $ = function(s){ return document.querySelector(s); };
+  var txn = new URLSearchParams(location.search).get("_ptxn");
+
+  function showFallback(){ $("#pending").classList.add("hide"); $("#fallback").classList.remove("hide"); }
+  function showReady(code, email){
+    $("#pending").classList.add("hide");
+    $("#code").textContent = code;
+    var link = "envyou://activate?email=" + encodeURIComponent(email || "") + "&code=" + encodeURIComponent(code);
+    $("#activateBtn").setAttribute("href", link);
+    $("#copyBtn").addEventListener("click", function(){
+      navigator.clipboard && navigator.clipboard.writeText(code);
+      $("#copyBtn").textContent = "✓ Copied";
+      setTimeout(function(){ $("#copyBtn").textContent = "⧉ Copy code"; }, 1500);
+    });
+    $("#ready").classList.remove("hide");
+  }
+
+  if (!txn){ showFallback(); return; }
+
+  var tries = 0, MAX = 30; // ~75s at 2.5s
+  function poll(){
+    tries++;
+    fetch(SUPABASE_URL + "/rest/v1/rpc/license_status_by_txn", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_txn: txn })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d && d.found && d.license_code){ showReady(d.license_code, d.email); return; }
+      if (tries >= MAX){ showFallback(); return; }
+      setTimeout(poll, 2500);
+    }).catch(function(){
+      if (tries >= MAX){ showFallback(); return; }
+      setTimeout(poll, 2500);
+    });
+  }
+  poll();
+})();
+</script>
+</body>
+</html>

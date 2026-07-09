@@ -207,6 +207,7 @@ mod issuer {
             issued_at: now_iso8601(),
             expires_at,
             features,
+            ..Default::default()
         };
         let token = issue_license(&seed, &claims).map_err(|e| e.to_string())?;
         println!("{token}");

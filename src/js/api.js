@@ -102,15 +102,24 @@
       s.settings = settings;
       return saveMock(s);
     },
-    activate_license: async ({ licenseKey }) => {
-      // Browser preview only: the real app verifies an Ed25519-signed license
-      // token (<payload>.<signature>) in Rust. Here we just sanity-check the
-      // token shape so the preview can demo the Pro flow — no signature check.
-      const parts = (licenseKey || "").trim().split(".");
-      const ok = parts.length === 2 && parts[0].length > 0 && parts[1].length > 0;
-      if (!ok) throw "license format is invalid (expected a signed token <payload>.<signature>)";
+    activate_pro: async ({ email, code }) => {
+      // Browser preview only: the real app calls the Supabase activation RPC in
+      // Rust, verifies the returned certificate offline, and stores it. Here we
+      // just sanity-check the inputs so the preview can demo the Pro flow.
+      const codeAlnum = (code || "").replace(/[^A-Za-z0-9]/g, "");
+      if (!email || !email.includes("@") || codeAlnum.length < 8)
+        throw "Please enter your license email and code.";
       const s = loadMock();
-      s.license = { isPro: true, licenseKey: licenseKey.trim(), activatedAt: nowIso() };
+      s.license = { isPro: true, licenseKey: "PREVIEW_CERTIFICATE", activatedAt: nowIso() };
+      return saveMock(s);
+    },
+    activate_certificate: async ({ certificate }) => {
+      // Advanced paste path — sanity-check the <payload>.<signature> shape only.
+      const parts = (certificate || "").trim().split(".");
+      const ok = parts.length === 2 && parts[0].length > 0 && parts[1].length > 0;
+      if (!ok) throw "This certificate is not valid.";
+      const s = loadMock();
+      s.license = { isPro: true, licenseKey: certificate.trim(), activatedAt: nowIso() };
       return saveMock(s);
     },
     link_claude_desktop: async () =>
@@ -145,8 +154,12 @@
       inTauri ? tauriInvoke("delete_variable", { projectId, key }) : mock.delete_variable({ projectId, key }),
     saveSettings: (settings) =>
       inTauri ? tauriInvoke("save_settings", { settings }) : mock.save_settings({ settings }),
-    activateLicense: (licenseKey) =>
-      inTauri ? tauriInvoke("activate_license", { licenseKey }) : mock.activate_license({ licenseKey }),
+    activatePro: (email, code) =>
+      inTauri ? tauriInvoke("activate_pro", { email, code }) : mock.activate_pro({ email, code }),
+    activateCertificate: (certificate) =>
+      inTauri
+        ? tauriInvoke("activate_certificate", { certificate })
+        : mock.activate_certificate({ certificate }),
     linkClaudeDesktop: () =>
       inTauri ? tauriInvoke("link_claude_desktop") : mock.link_claude_desktop(),
     setAlwaysOnTop: (enabled) => (inTauri ? tauriSetAlwaysOnTop(enabled) : Promise.resolve()),
