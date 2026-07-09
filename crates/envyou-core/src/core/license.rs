@@ -1,8 +1,13 @@
-//! Offline license activation & verification (spec §6.3).
+//! Offline license activation & verification.
 //!
-//! # Model
+//! # Two layers: a short *code* and a signed *certificate*
 //!
-//! A license is a compact, self-contained **Ed25519-signed token**:
+//! Buyers see a short, human-friendly **license code** (e.g.
+//! `ENVY-K7M4-9Q2P-D8X6-R3TA`) — see [`generate_license_code`]. That code is
+//! only a lookup key into the license database; it is *not* a token the app can
+//! verify by itself. When the buyer activates, the app exchanges the code (plus
+//! their email) at the activation server, which returns the real
+//! **certificate**: a compact, self-contained **Ed25519-signed token**
 //!
 //! ```text
 //! <payload>.<signature>
@@ -10,28 +15,34 @@
 //!
 //! where both parts are URL-safe base64 (no padding). `payload` is a JSON
 //! [`LicenseClaims`] document; `signature` is a 64-byte Ed25519 signature over
-//! the exact `payload` bytes as transmitted.
+//! the exact `payload` bytes as transmitted. The app verifies this certificate
+//! fully offline against the embedded public key and stores it — after the first
+//! activation Pro works air-gapped, and every load re-verifies the stored
+//! certificate rather than trusting a persisted boolean.
 //!
-//! The license server (Paddle / Lemon Squeezy webhook, or a manual issuer)
-//! holds the **private** signing key and mints a signed token per purchase. The
-//! app embeds only the corresponding **public** key ([`LICENSE_PUBLIC_KEY_B64`])
-//! and verifies signatures fully offline — no network, works air-gapped.
+//! The license server (the Paddle webhook, or a manual issuer) holds the
+//! **private** signing key, mints one certificate per purchase, and stores it in
+//! the DB keyed by the short code. The app embeds only the corresponding
+//! **public** key ([`LICENSE_PUBLIC_KEY_B64`]). Because the signing key never
+//! ships, the app can *verify* but never *mint* a certificate, so a valid Pro
+//! certificate cannot be manufactured on the client. This also fixes the older
+//! "email the whole token" scheme, where line-wrapping a long token in an email
+//! client produced an `invalid license signature` on paste (verification now
+//! strips all whitespace, and the visible artifact is the short code anyway).
 //!
-//! This replaces the earlier MVP scheme (`SHA256(key + hardware_id)`), which
-//! could be forged locally because the app both produced and checked the token.
-//! With asymmetric signatures the app can *verify* but never *mint* a license,
-//! so a valid Pro token cannot be manufactured on the client.
+//! See `docs/LICENSE_SYSTEM.md` and `docs/ACTIVATION_FLOW.md` for the full flow.
 //!
 //! # ⚠️ Key management (read before shipping)
 //!
 //! * The signing **private key MUST NEVER be committed to this repository** or
-//!   bundled into the app. Generate it once, offline, and keep it in your
-//!   payment provider's secret store / a hardware token. See `README.md`
-//!   → *License model* for the generation recipe.
-//! * [`LICENSE_PUBLIC_KEY_B64`] below ships as an unconfigured placeholder, so
-//!   the build **fails closed**: every activation is rejected until the product
-//!   owner pastes their real public key. This is intentional — it is safer to
-//!   ship with Pro un-activatable than with Pro forgeable.
+//!   bundled into the app. Generate it once, offline, and keep it only in the
+//!   issuer's secret store (Railway `ENVYOU_SIGNING_KEY_B64`). See
+//!   `docs/LICENSE_SYSTEM.md` → *Key management* for the recipe.
+//! * [`LICENSE_PUBLIC_KEY_B64`] below is set to the production public key. To
+//!   force the build closed (reject every activation), reset it to
+//!   [`UNCONFIGURED_PUBLIC_KEY_B64`] or empty — shipping un-activatable is safer
+//!   than shipping forgeable. `license_tool checkkey` proves the shipped public
+//!   key matches the webhook's signing seed before you release.
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as B64URL, Engine};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};

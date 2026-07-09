@@ -106,20 +106,18 @@ protect — stated plainly.
 
 These are deliberate, documented gaps — not hidden ones.
 
-- **License signing key is unset.** `license::LICENSE_PUBLIC_KEY_B64` ships as a
-  **placeholder**, so the build **fails closed**: every activation is rejected
-  until the product owner generates a keypair and pastes their real public key.
-  This is intentional (safer to ship with Pro un-activatable than forgeable).
-  See *License model* below. **The private signing key must never live in this
-  repo.**
 - **Master password has no UI yet.** The Argon2id password vault is implemented
   and tested in the core (`Store::with_password`, `migrate_to_password`), but the
   desktop app currently opens the **device-bound** vault by default. A first-run
   "set password" / "unlock" screen is the next step to expose it.
 - **Device-bound mode is not a defense against local attackers.** See above.
   It binds the file to the machine; it does not resist local code execution.
-- **Paddle/Lemon Squeezy checkout** (the purchase flow) is out of scope; only
-  *activation* of an issued signed license is implemented.
+
+The purchase → license → activation flow **is** implemented end-to-end (Paddle
+checkout, signed-certificate issuance, offline verification) — see *License
+model* below. The signing **private key must never live in this repo**; the app
+ships only the public verification key, and the build fails closed if that key
+is ever reset to the placeholder.
 
 ---
 
@@ -229,10 +227,27 @@ location, so linking is macOS/Windows only.
 
 ### License model
 
-Licenses are compact **Ed25519-signed tokens**: `<payload>.<signature>`
-(URL-safe base64). The payload is JSON with `product`, `plan`, optional
-`hardwareId`, `issuedAt`, optional `expiresAt`, and `features`. Verification is
-fully offline against the embedded public key.
+Two layers, so the buyer-facing key is short and pretty while verification
+stays cryptographic:
+
+- **License code** — what the buyer sees: `ENVY-K7M4-9Q2P-D8X6-R3TA`. A
+  short, unambiguous lookup key into the license DB. Not verifiable by itself.
+- **Signed certificate** — what the app verifies: a compact
+  **Ed25519-signed token** `<payload>.<signature>` (URL-safe base64). The
+  payload is JSON with `product`, `plan`, optional `hardwareId`, `issuedAt`,
+  optional `expiresAt`, `features`, and (v2) `licenseId`/`emailHash`/`codeHash`.
+  Verification is fully **offline** against the public key embedded in the app.
+
+On purchase, the Paddle webhook mints a certificate, stores it in Supabase keyed
+by a freshly generated code, and emails the buyer the **code**. To activate, the
+app trades the code + email at the Supabase `activate_license` RPC for the
+certificate, verifies it offline, and stores it — after which Pro works
+air-gapped and is re-verified on every load. The app holds only the public key,
+so it can *verify* but never *mint* a license.
+
+> **Full docs:** [`docs/LICENSE_SYSTEM.md`](docs/LICENSE_SYSTEM.md) (design +
+> key management), [`docs/ACTIVATION_FLOW.md`](docs/ACTIVATION_FLOW.md) (buyer
+> journey), [`docs/PADDLE_WEBHOOK.md`](docs/PADDLE_WEBHOOK.md) (issuance & ops).
 
 **Setting up signing (product owner, one time, offline).** The repo ships an
 offline `license_tool` (gated behind the `issuer` feature so the app itself can
@@ -247,24 +262,24 @@ cargo run -p envyou-core --features issuer --example license_tool -- \
 # 2. Paste the printed public key into
 #    crates/envyou-core/src/core/license.rs -> LICENSE_PUBLIC_KEY_B64
 
-# 3. Mint a license for a buyer (do this from your purchase webhook):
-cargo run -p envyou-core --features issuer --example license_tool -- \
-    issue envyou-signing.key --plan pro \
-    --hardware-id <machine-id> --expires 2027-07-06T00:00:00Z \
-    --features unlimited_projects
+# 3. Prove the app will accept the webhook's licenses (run before every release;
+#    exits non-zero on mismatch or if the app still ships the placeholder):
+ENVYOU_SIGNING_KEY_B64=<your private key b64> \
+cargo run -p envyou-core --features issuer --example license_tool -- checkkey
 ```
 
-Keep the **private key** in your payment provider's secret store / a hardware
-token. **Never commit it** — `*-signing.key` is gitignored. On each purchase a
-webhook (Paddle / Lemon Squeezy) runs step 3 and emails the token to the buyer.
-Until the public key is configured, the build rejects all activations by design.
+Keep the **private key** only in the webhook's secret store (Railway
+`ENVYOU_SIGNING_KEY_B64`). **Never commit it** — `*-signing.key` is gitignored.
+Reset `LICENSE_PUBLIC_KEY_B64` to the placeholder (or empty) to force the build
+closed and reject all activations by design.
 
 ---
 
 ## Roadmap
 
+- [x] Production Ed25519 public key + Paddle issuance webhook + short-code
+  activation (see `docs/LICENSE_SYSTEM.md`)
 - [ ] First-run **set-password / unlock** UI for the Argon2id vault
-- [ ] Configure production Ed25519 public key + issuance webhook
 - [ ] Export/import (`.env`, JSON, shell), encrypted backups
 - [ ] Signed, notarized macOS/Windows release bundles
 - [ ] Per-project MCP allow-list
