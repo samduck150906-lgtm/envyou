@@ -390,6 +390,7 @@ fn handle_transaction(
             "unlimited_projects".to_string(),
             "unlimited_variables".to_string(),
         ],
+        ..Default::default()
     };
 
     let token = issue_license(&cfg.signing_seed, &claims)

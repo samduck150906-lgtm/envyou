@@ -76,12 +76,15 @@ fn is_configured_key(key_b64: &str) -> bool {
     !k.is_empty() && k != UNCONFIGURED_PUBLIC_KEY_B64
 }
 
-/// The signed claims carried by a license token.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// The signed claims carried by a license certificate (the internal
+/// `<payload>.<signature>` token the app stores and verifies offline). Users
+/// never see this — they see the short [`generate_license_code`] code, which the
+/// activation server exchanges for this certificate.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LicenseClaims {
     /// Product scope — must equal [`PRODUCT`].
     pub product: String,
-    /// Plan name, e.g. `"pro"`.
+    /// Plan name, e.g. `"pro"` or `"pro-lifetime"`. Drives [`grants_pro`].
     pub plan: String,
     /// Optional hardware binding. When present, the license is only valid on a
     /// machine whose id matches (see [`crate::core::storage::machine_id`]).
@@ -101,6 +104,24 @@ pub struct LicenseClaims {
     /// Feature flags unlocked by this license (e.g. `["unlimited_projects"]`).
     #[serde(default)]
     pub features: Vec<String>,
+    /// Opaque license id (the DB row id). v2+.
+    #[serde(rename = "licenseId", default, skip_serializing_if = "Option::is_none")]
+    pub license_id: Option<String>,
+    /// SHA-256 (hex) of the buyer's normalized email — binds the certificate to
+    /// the buyer without embedding the raw email. v2+.
+    #[serde(rename = "emailHash", default, skip_serializing_if = "Option::is_none")]
+    pub email_hash: Option<String>,
+    /// SHA-256 (hex) of the license code — binds the certificate to its code. v2+.
+    #[serde(rename = "codeHash", default, skip_serializing_if = "Option::is_none")]
+    pub code_hash: Option<String>,
+    /// Certificate schema version (2 = short-code + server activation). Absent on
+    /// legacy v1 tokens.
+    #[serde(
+        rename = "schemaVersion",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub schema_version: Option<u32>,
 }
 
 impl LicenseClaims {
@@ -173,7 +194,9 @@ fn verify_license_with_key(
     hardware_id: &str,
     key: &VerifyingKey,
 ) -> Result<LicenseClaims> {
-    let license = license.trim();
+    // Strip ALL whitespace (not just the ends) so a certificate that got
+    // line-wrapped by an email client still parses.
+    let license: String = license.chars().filter(|c| !c.is_whitespace()).collect();
     let (payload_b64, sig_b64) = license.split_once('.').ok_or_else(|| {
         Error::License("malformed license (expected <payload>.<signature>)".into())
     })?;
@@ -255,6 +278,105 @@ pub fn is_pro_active(license_key: Option<&str>, hardware_id: &str) -> bool {
     }
 }
 
+// ============================================================================
+// Short license codes (what buyers see) + normalization helpers.
+//
+// A license *code* (e.g. `ENVY-K7M4-9Q2P-D8X6-R3TA`) is a human-friendly lookup
+// key stored in the license DB. It is NOT a signed token — the activation server
+// exchanges a valid code (+ email) for the signed certificate above, which the
+// app then verifies offline. Keeping these separate lets the visible key be
+// short and pretty while verification stays cryptographic.
+// ============================================================================
+
+/// The visible prefix on every license code.
+pub const LICENSE_CODE_PREFIX: &str = "ENVY";
+
+/// Normalize a buyer email for storage/comparison: drop all whitespace and
+/// lowercase. Deliberately conservative — no Gmail dot/plus tricks — so a
+/// legitimately distinct address is never merged.
+pub fn normalize_email(email: &str) -> String {
+    email
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>()
+        .to_lowercase()
+}
+
+/// Canonicalize a user-entered license code to the stored form
+/// `ENVY-XXXX-XXXX-XXXX-…`: uppercase, drop everything that isn't a letter or
+/// digit, then regroup in fours. Tolerant of missing/extra hyphens, spaces, and
+/// case, and idempotent, so lookups match regardless of how the buyer typed it.
+pub fn normalize_license_code(input: &str) -> String {
+    let cleaned: String = input
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    let body = cleaned
+        .strip_prefix(LICENSE_CODE_PREFIX)
+        .unwrap_or(&cleaned);
+    let mut out = String::from(LICENSE_CODE_PREFIX);
+    for (i, ch) in body.chars().enumerate() {
+        if i % 4 == 0 {
+            out.push('-');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Lowercase-hex SHA-256 of the input — used to bind a certificate to its
+/// email/code without embedding the raw values.
+pub fn sha256_hex(input: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(input.as_bytes());
+    let mut s = String::with_capacity(64);
+    for b in digest {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+/// Alphabet for license codes: A–Z and 2–9 with the ambiguous glyphs
+/// (I, L, O, 0, 1) removed so codes are safe to read aloud and retype.
+#[cfg(feature = "issuer")]
+const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/// Number of random body characters (excludes the `ENVY` prefix). 16 symbols
+/// over a 30-char alphabet ≈ 78 bits of entropy; the DB `unique` constraint is
+/// the ultimate collision guard.
+#[cfg(feature = "issuer")]
+const CODE_BODY_LEN: usize = 16;
+
+/// Generate a fresh license code, e.g. `ENVY-K7M4-9Q2P-D8X6-R3TA`, using OS
+/// randomness with rejection sampling (no modulo bias). Issuer-only — the app
+/// never generates codes.
+#[cfg(feature = "issuer")]
+pub fn generate_license_code() -> String {
+    use rand::RngCore;
+    let mut rng = rand::rngs::OsRng;
+    let n = CODE_ALPHABET.len() as u32;
+    // Reject the top of the u32 range that doesn't divide evenly, so every
+    // symbol is equally likely.
+    let limit = u32::MAX - (u32::MAX % n);
+    let mut body = String::with_capacity(CODE_BODY_LEN);
+    while body.len() < CODE_BODY_LEN {
+        let r = rng.next_u32();
+        if r >= limit {
+            continue;
+        }
+        body.push(CODE_ALPHABET[(r % n) as usize] as char);
+    }
+    let mut out = String::from(LICENSE_CODE_PREFIX);
+    for (i, ch) in body.chars().enumerate() {
+        if i % 4 == 0 {
+            out.push('-');
+        }
+        out.push(ch);
+    }
+    out
+}
+
 /// Mint a signed license token (`<payload>.<signature>`) from claims and a
 /// 32-byte Ed25519 **private** signing key.
 ///
@@ -333,6 +455,7 @@ mod tests {
             issued_at: "2026-01-01T00:00:00Z".into(),
             expires_at: None,
             features: vec!["unlimited_projects".into()],
+            ..Default::default()
         }
     }
 
@@ -513,5 +636,96 @@ mod tests {
         let lic = issue(&sk, &claims);
         let verified = verify_license_with_key(&lic, "machine-A", &vk).unwrap();
         assert!(!grants_pro(&verified));
+    }
+
+    #[test]
+    fn normalize_email_lowercases_and_strips_whitespace() {
+        assert_eq!(
+            normalize_email("  Foo.Bar@Example.COM \n"),
+            "foo.bar@example.com"
+        );
+        assert_eq!(normalize_email("a b\t@ c.com"), "ab@c.com");
+        // conservative: does NOT strip Gmail dots / plus tags
+        assert_eq!(normalize_email("a.b+tag@gmail.com"), "a.b+tag@gmail.com");
+    }
+
+    #[test]
+    fn normalize_code_is_tolerant_and_idempotent() {
+        let canon = "ENVY-K7M4-9Q2P-D8X6-R3TA";
+        assert_eq!(normalize_license_code("envy k7m4 9q2p d8x6 r3ta"), canon);
+        assert_eq!(normalize_license_code("ENVYK7M49Q2PD8X6R3TA"), canon);
+        assert_eq!(normalize_license_code("k7m4-9q2p-d8x6-r3ta"), canon); // no prefix typed
+        assert_eq!(normalize_license_code(" envy_k7m4_9q2p_d8x6_r3ta "), canon);
+        assert_eq!(normalize_license_code(canon), canon); // idempotent
+    }
+
+    #[test]
+    fn sha256_hex_matches_known_vector() {
+        // SHA-256("") — a well-known constant.
+        assert_eq!(
+            sha256_hex(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn certificate_verifies_despite_email_line_wrapping() {
+        let sk = test_signing_key();
+        let vk = sk.verifying_key();
+        let lic = issue(&sk, &pro_claims());
+        // Simulate an email client wrapping the long certificate across lines.
+        let mid = lic.len() / 2;
+        let wrapped = format!("{}\r\n  {}", &lic[..mid], &lic[mid..]);
+        let claims = verify_license_with_key(&wrapped, "machine-A", &vk).unwrap();
+        assert_eq!(claims.plan, "pro");
+    }
+
+    #[cfg(feature = "issuer")]
+    #[test]
+    fn generated_code_shape_alphabet_and_uniqueness() {
+        let code = generate_license_code();
+        assert!(code.starts_with("ENVY-"), "code: {code}");
+        assert_eq!(code.len(), 24, "ENVY + 4×4 groups + hyphens = 24: {code}");
+        let body: String = code
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .skip(4)
+            .collect();
+        assert_eq!(body.len(), CODE_BODY_LEN);
+        for c in body.chars() {
+            assert!(
+                CODE_ALPHABET.contains(&(c as u8)),
+                "unexpected char {c} in {code}"
+            );
+        }
+        // A generated code normalizes back to itself.
+        assert_eq!(normalize_license_code(&code), code);
+        // Two codes are astronomically unlikely to collide.
+        assert_ne!(generate_license_code(), generate_license_code());
+    }
+
+    #[cfg(feature = "issuer")]
+    #[test]
+    fn certificate_v2_fields_roundtrip_and_grant_pro() {
+        use ed25519_dalek::SigningKey;
+        let seed = [21u8; 32];
+        let vk = SigningKey::from_bytes(&seed).verifying_key();
+        let claims = LicenseClaims {
+            product: PRODUCT.into(),
+            plan: "pro-lifetime".into(),
+            hardware_id: None,
+            issued_at: "2026-07-09T00:00:00Z".into(),
+            expires_at: None,
+            features: vec!["unlimited_projects".into(), "mcp".into()],
+            license_id: Some("11111111-1111-1111-1111-111111111111".into()),
+            email_hash: Some(sha256_hex(&normalize_email("Buyer@Example.com"))),
+            code_hash: Some(sha256_hex("ENVY-K7M4-9Q2P-D8X6-R3TA")),
+            schema_version: Some(2),
+        };
+        let cert = issue_license(&seed, &claims).unwrap();
+        let verified = verify_license_with_key(&cert, "any-machine", &vk).unwrap();
+        assert_eq!(verified, claims);
+        assert!(grants_pro(&verified));
+        assert_eq!(verified.schema_version, Some(2));
     }
 }
