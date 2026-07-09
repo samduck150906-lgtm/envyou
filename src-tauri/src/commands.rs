@@ -236,22 +236,102 @@ pub fn save_settings(state: State<AppState>, settings: Settings) -> CmdResult<En
     Ok(s)
 }
 
+/// Supabase project that hosts the license store + activation RPC. Both the URL
+/// and the anon key are **public** (the anon key only exposes the
+/// `activate_license` RPC, which validates a code + email and returns the
+/// already-signed certificate). No secret ever ships in the app.
+const SUPABASE_URL: &str = "https://dfslueqzfmvtpdencasw.supabase.co";
+const SUPABASE_ANON_KEY: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmc2x1ZXF6Zm12dHBkZW5jYXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1ODMyMjcsImV4cCI6MjA5OTE1OTIyN30.nCyPRp_qBwYBtLHaawafheBaVSpi8Fi8gVhGmgJKjm0";
+
+fn activation_generic_err() -> String {
+    "We couldn't activate this license. Please check your license email and code.".to_string()
+}
+
+/// Activate Pro online: exchange (email, license code) at the Supabase
+/// activation RPC for a signed certificate, verify that certificate **offline**
+/// against the embedded public key, and store it. Afterwards Pro persists
+/// offline — every load re-verifies the stored certificate (see [`load`]).
 #[tauri::command]
-pub fn activate_license(
+pub fn activate_pro(
     state: State<AppState>,
-    license_key: String,
+    email: String,
+    code: String,
 ) -> CmdResult<EnvYouLocalState> {
-    // Validate + machine-bind the key offline (spec §6.3), and require a Pro-tier
-    // plan so a validly-signed non-Pro token can never unlock Pro.
-    let claims = license::verify_license(&license_key, &machine_id()).map_err(|e| e.to_string())?;
-    if !license::grants_pro(&claims) {
-        return Err("this license is valid but does not include the Pro plan".into());
+    let email = email.trim().to_string();
+    let code_norm = license::normalize_license_code(&code);
+    if email.is_empty() || !email.contains('@') || code_norm.len() < 8 {
+        return Err("Please enter your license email and code.".into());
     }
-    let mut s = load(&state)?;
+
+    // Ask the activation server (public anon key) to exchange code+email for the
+    // signed certificate. The RPC returns HTTP 200 with a JSON result even for
+    // logical failures (ok:false), so non-200 means a network/auth problem.
+    let url = format!("{SUPABASE_URL}/rest/v1/rpc/activate_license");
+    let resp = ureq::post(&url)
+        .set("apikey", SUPABASE_ANON_KEY)
+        .set("Authorization", &format!("Bearer {SUPABASE_ANON_KEY}"))
+        .set("Content-Type", "application/json")
+        .timeout(std::time::Duration::from_secs(20))
+        .send_json(serde_json::json!({ "p_license_code": code_norm, "p_email": email }));
+
+    let body: serde_json::Value = match resp {
+        Ok(r) => r.into_json().map_err(|_| activation_generic_err())?,
+        Err(ureq::Error::Status(_, r)) => r.into_json().map_err(|_| activation_generic_err())?,
+        Err(_) => return Err(
+            "Couldn't reach the activation server. Check your internet connection and try again."
+                .into(),
+        ),
+    };
+
+    if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+        // Surface the server's friendly message; log only the machine-readable code.
+        eprintln!(
+            "activation_error server_code={}",
+            body.get("code")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+        );
+        return Err(body
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&activation_generic_err())
+            .to_string());
+    }
+
+    let cert = body
+        .get("signed_certificate")
+        .and_then(|v| v.as_str())
+        .ok_or_else(activation_generic_err)?;
+
+    store_certificate(&state, cert).map_err(|e| {
+        eprintln!("activation_error=certificate_verify_failed detail={e}");
+        "We activated your license but couldn't verify it on this device. Please update envyou to the latest version, or contact ceo@eternalsix.com.".to_string()
+    })
+}
+
+/// Advanced path: activate directly from a pasted signed certificate (support /
+/// offline re-activation). The main path is [`activate_pro`].
+#[tauri::command]
+pub fn activate_certificate(
+    state: State<AppState>,
+    certificate: String,
+) -> CmdResult<EnvYouLocalState> {
+    store_certificate(&state, &certificate)
+        .map_err(|_| "This certificate is not valid on this device.".to_string())
+}
+
+/// Verify a signed certificate offline against the embedded public key, require
+/// a Pro plan, and persist it. Shared by the online and paste paths.
+fn store_certificate(state: &State<AppState>, certificate: &str) -> CmdResult<EnvYouLocalState> {
+    let claims = license::verify_license(certificate, &machine_id()).map_err(|e| e.to_string())?;
+    if !license::grants_pro(&claims) {
+        return Err("this certificate does not include the Pro plan".into());
+    }
+    let mut s = load(state)?;
     s.license.is_pro = true;
-    s.license.license_key = Some(license_key.trim().to_string());
+    s.license.license_key = Some(certificate.trim().to_string());
     s.license.activated_at = Some(now_iso8601());
-    persist(&state, &s)?;
+    persist(state, &s)?;
     Ok(s)
 }
 
