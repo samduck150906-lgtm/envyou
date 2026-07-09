@@ -1,59 +1,66 @@
-//! envyou Paddle Billing webhook.
+//! envyou Paddle Billing webhook + license issuer.
 //!
 //! Flow: Paddle sends `transaction.completed` -> we verify the HMAC signature
-//! (and reject stale timestamps) -> dedupe on the transaction id -> map the
-//! purchased price to a plan -> look up the buyer's email -> mint an
-//! Ed25519-signed license with envyou-core (same format the app verifies) ->
-//! email it via Resend.
+//! (and reject stale timestamps) -> map the price to a plan -> look up the
+//! buyer's email -> generate a short human-friendly license code -> mint an
+//! Ed25519-signed **certificate** (the app verifies this offline) -> store both
+//! in Supabase -> email the short code to the buyer.
 //!
-//! Reliability contract with Paddle:
-//! * A transient failure (Paddle/Resend 5xx, timeout, network) returns **HTTP
-//!   503** so Paddle retries — a paid license is never silently dropped.
-//! * A permanent/ignorable outcome (wrong event, no Pro price, already handled)
-//!   returns **200** so Paddle stops retrying.
-//! * Every purchase is deduped on the Paddle transaction id, so those retries
-//!   (and Paddle's occasional duplicate deliveries) never mint a second license.
+//! Activation itself is NOT handled here: the desktop app calls the Supabase
+//! `activate_license` RPC directly (anon key), which validates the code + email,
+//! enforces the activation limit, and returns the stored certificate.
+//!
+//! Idempotency & reliability:
+//! * `paddle_transaction_id` is UNIQUE in the DB, so retries/duplicate
+//!   deliveries never mint a second license — a repeat just re-emails the code.
+//! * A transient failure (Paddle/Resend/Supabase 5xx, timeout, network) returns
+//!   HTTP 503 so Paddle retries; a paid license is never silently dropped.
 //!
 //! ALL secrets come from environment variables — nothing is baked into the
-//! binary or the repo. See README.md for the full list and deploy steps.
+//! binary or the repo. See README.md.
+//!
+//! Admin CLI (same binary):
+//!   paddle-webhook lookup-license    <email>
+//!   paddle-webhook resend-license    <email>
+//!   paddle-webhook reset-activations <license-code>
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use envyou_core::core::license::{issue_license, LicenseClaims, PRODUCT};
+use envyou_core::core::license::{
+    generate_license_code, issue_license, normalize_email, sha256_hex, LicenseClaims, PRODUCT,
+};
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha2::Sha256;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 type HmacSha256 = Hmac<Sha256>;
 
-/// Hard cap on the request body we will read before authenticating it, so an
-/// unauthenticated caller cannot exhaust memory with a huge/slow POST.
+/// Hard cap on the request body we read before authenticating it.
 const MAX_BODY_BYTES: usize = 256 * 1024;
+/// Generous max age for a Paddle-Signature timestamp (idempotency is the real
+/// replay defense; this only bounds ancient captured replays).
+const DEFAULT_MAX_SIGNATURE_AGE_SECS: u64 = 5 * 24 * 60 * 60;
+/// Retries if a freshly generated code happens to collide (astronomically rare).
+const MAX_CODE_RETRIES: u32 = 6;
+/// Default activation limit per license.
+const MAX_ACTIVATIONS: i64 = 3;
 
-/// Default max age (seconds) of a `Paddle-Signature` timestamp. Deliberately
-/// generous — Paddle re-delivers the *same* signature on delayed retries (up to
-/// a few days), so a tight window would reject legitimate retries. The real
-/// replay defense is idempotency; this only bounds ancient captured replays.
-const DEFAULT_MAX_SIGNATURE_AGE_SECS: u64 = 5 * 24 * 60 * 60; // 5 days
-
-/// Runtime configuration, all from env.
 struct Config {
-    webhook_secret: String, // PADDLE_WEBHOOK_SECRET (the destination's secret key)
-    signing_seed: [u8; 32], // ENVYOU_SIGNING_KEY_B64 (base64 of the 32-byte private key)
-    paddle_api_key: String, // PADDLE_API_KEY (server-side, to look up customer email)
-    paddle_api_base: String, // PADDLE_API_BASE (prod default; sandbox: https://sandbox-api.paddle.com)
-    resend_api_key: String,  // RESEND_API_KEY
-    email_from: String,      // EMAIL_FROM, e.g. "envyou <licenses@envyou.dev>"
-    price_lifetime: String,  // PRICE_LIFETIME (pri_...)
-    price_annual: String,    // PRICE_ANNUAL (pri_...)
-    max_sig_age: u64,        // PADDLE_MAX_SIGNATURE_AGE_SECS
+    webhook_secret: String,
+    signing_seed: [u8; 32],
+    paddle_api_key: String,
+    paddle_api_base: String,
+    resend_api_key: String,
+    email_from: String,
+    price_lifetime: String,
+    price_annual: String,
+    max_sig_age: u64,
+    supabase_url: String,
+    supabase_service_key: String,
 }
 
-/// A required secret. Fails fast if the var is missing **or empty** — an empty
-/// `PADDLE_WEBHOOK_SECRET` would key the HMAC on "" and make signatures forgeable.
+/// A required secret. Fails fast if missing or empty.
 fn require(name: &str) -> String {
     match std::env::var(name) {
         Ok(v) if !v.trim().is_empty() => v,
@@ -90,7 +97,6 @@ fn load_config() -> Config {
         resend_api_key: require("RESEND_API_KEY"),
         email_from: env_or("EMAIL_FROM", "envyou <onboarding@resend.dev>"),
         price_lifetime: require("PRICE_LIFETIME"),
-        // Optional: only set if you also sell an annual plan. Empty = lifetime only.
         price_annual: env_or("PRICE_ANNUAL", ""),
         max_sig_age: env_or(
             "PADDLE_MAX_SIGNATURE_AGE_SECS",
@@ -98,6 +104,8 @@ fn load_config() -> Config {
         )
         .parse()
         .unwrap_or(DEFAULT_MAX_SIGNATURE_AGE_SECS),
+        supabase_url: require("SUPABASE_URL").trim_end_matches('/').to_string(),
+        supabase_service_key: require("SUPABASE_SERVICE_ROLE_KEY"),
     }
 }
 
@@ -124,72 +132,11 @@ impl HErr {
 
 fn ureq_transient(e: &ureq::Error) -> bool {
     match e {
-        // 5xx / rate-limit / request-timeout are worth retrying; other 4xx aren't.
         ureq::Error::Status(code, _) => *code >= 500 || *code == 429 || *code == 408,
-        // DNS / connect / read timeout / reset — all transient.
         ureq::Error::Transport(_) => true,
     }
 }
 
-/// Idempotency store keyed on the Paddle transaction id. Backed by a JSON file
-/// so it survives process restarts **when the path is on a persistent volume**
-/// (set `IDEMPOTENCY_FILE` to a mounted volume path on Railway; otherwise it
-/// dedupes within the container's lifetime, which already covers Paddle's burst
-/// retries). Falls back to in-memory only if the file can't be written.
-struct Idempotency {
-    path: Option<PathBuf>,
-    seen: Mutex<HashSet<String>>,
-}
-
-impl Idempotency {
-    fn load(path: Option<PathBuf>) -> Self {
-        let mut seen = HashSet::new();
-        if let Some(p) = &path {
-            if let Ok(txt) = std::fs::read_to_string(p) {
-                if let Ok(v) = serde_json::from_str::<HashSet<String>>(&txt) {
-                    seen = v;
-                }
-            }
-        }
-        Idempotency {
-            path,
-            seen: Mutex::new(seen),
-        }
-    }
-
-    fn contains(&self, id: &str) -> bool {
-        self.seen.lock().map(|s| s.contains(id)).unwrap_or(false)
-    }
-
-    fn mark(&self, id: &str) {
-        let mut guard = match self.seen.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
-        guard.insert(id.to_string());
-        if let Some(p) = &self.path {
-            match serde_json::to_string(&*guard) {
-                Ok(txt) => {
-                    // Write then rename so a crash mid-write can't corrupt the file.
-                    let tmp = p.with_extension("json.tmp");
-                    if std::fs::write(&tmp, txt)
-                        .and_then(|_| std::fs::rename(&tmp, p))
-                        .is_err()
-                    {
-                        eprintln!(
-                            "warning: could not persist idempotency file {}",
-                            p.display()
-                        );
-                    }
-                }
-                Err(e) => eprintln!("warning: could not serialize idempotency set: {e}"),
-            }
-        }
-    }
-}
-
-/// ureq agent with connect + overall timeouts so a hung Paddle/Resend call can't
-/// stall the (single-threaded) server indefinitely.
 fn http_agent() -> ureq::Agent {
     ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(10))
@@ -197,19 +144,112 @@ fn http_agent() -> ureq::Agent {
         .build()
 }
 
+// ---- Supabase (PostgREST) helpers, service-role ------------------------------
+
+fn sb_get(agent: &ureq::Agent, cfg: &Config, path_and_query: &str) -> Result<Vec<Value>, HErr> {
+    let url = format!("{}/rest/v1/{}", cfg.supabase_url, path_and_query);
+    let resp = agent
+        .get(&url)
+        .set("apikey", &cfg.supabase_service_key)
+        .set(
+            "Authorization",
+            &format!("Bearer {}", cfg.supabase_service_key),
+        )
+        .call()
+        .map_err(|e| HErr {
+            transient: ureq_transient(&e),
+            msg: format!("supabase GET failed: {e}"),
+        })?;
+    let body: Value = resp
+        .into_json()
+        .map_err(|e| HErr::permanent(format!("supabase GET parse failed: {e}")))?;
+    Ok(body.as_array().cloned().unwrap_or_default())
+}
+
+/// Outcome of an INSERT into `licenses`.
+enum Insert {
+    Created,
+    ConflictTxn,  // paddle_transaction_id already present (duplicate delivery / race)
+    ConflictCode, // license_code collision — regenerate and retry
+}
+
+fn sb_insert_license(agent: &ureq::Agent, cfg: &Config, row: &Value) -> Result<Insert, HErr> {
+    let url = format!("{}/rest/v1/licenses", cfg.supabase_url);
+    let resp = agent
+        .post(&url)
+        .set("apikey", &cfg.supabase_service_key)
+        .set(
+            "Authorization",
+            &format!("Bearer {}", cfg.supabase_service_key),
+        )
+        .set("Content-Type", "application/json")
+        .set("Prefer", "return=minimal")
+        .send_json(row.clone());
+    match resp {
+        Ok(_) => Ok(Insert::Created),
+        Err(ureq::Error::Status(409, _)) => {
+            // Distinguish which unique constraint tripped without parsing the
+            // error body: if the txn now exists it was the txn constraint.
+            let txn = row
+                .get("paddle_transaction_id")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let existing = sb_get(
+                agent,
+                cfg,
+                &format!("licenses?paddle_transaction_id=eq.{}&select=id", enc(txn)),
+            )?;
+            if existing.is_empty() {
+                Ok(Insert::ConflictCode)
+            } else {
+                Ok(Insert::ConflictTxn)
+            }
+        }
+        Err(e) => Err(HErr {
+            transient: ureq_transient(&e),
+            msg: format!("supabase INSERT failed: {e}"),
+        }),
+    }
+}
+
+fn sb_get_by_txn(agent: &ureq::Agent, cfg: &Config, txn: &str) -> Result<Option<Value>, HErr> {
+    let rows = sb_get(
+        agent,
+        cfg,
+        &format!("licenses?paddle_transaction_id=eq.{}&select=*", enc(txn)),
+    )?;
+    Ok(rows.into_iter().next())
+}
+
+/// Percent-encode a value for a PostgREST query string / URL.
+fn enc(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+// ---- Issuance ----------------------------------------------------------------
+
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("lookup-license") => cli(|cfg, agent| cli_lookup(cfg, agent, args.get(1))),
+        Some("resend-license") => cli(|cfg, agent| cli_resend(cfg, agent, args.get(1))),
+        Some("reset-activations") => cli(|cfg, agent| cli_reset(cfg, agent, args.get(1))),
+        _ => run_server(),
+    }
+}
+
+fn run_server() {
     let cfg = load_config();
     let agent = http_agent();
-    let idem_path = std::env::var("IDEMPOTENCY_FILE")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .map(PathBuf::from)
-        .or_else(|| Some(PathBuf::from("processed_transactions.json")));
-    if let Some(p) = &idem_path {
-        eprintln!("idempotency store: {}", p.display());
-    }
-    let idem = Idempotency::load(idem_path);
-
     let port = env_or("PORT", "8080");
     let addr = format!("0.0.0.0:{port}");
     let server = tiny_http::Server::http(addr.as_str()).unwrap_or_else(|e| {
@@ -219,23 +259,17 @@ fn main() {
     eprintln!("paddle-webhook listening on {addr}");
 
     for mut request in server.incoming_requests() {
-        let (status, body) = route(&mut request, &cfg, &agent, &idem);
+        let (status, body) = route(&mut request, &cfg, &agent);
         let response =
             tiny_http::Response::from_string(body).with_status_code(tiny_http::StatusCode(status));
         let _ = request.respond(response);
     }
 }
 
-fn route(
-    request: &mut tiny_http::Request,
-    cfg: &Config,
-    agent: &ureq::Agent,
-    idem: &Idempotency,
-) -> (u16, String) {
+fn route(request: &mut tiny_http::Request, cfg: &Config, agent: &ureq::Agent) -> (u16, String) {
     let method = request.method().as_str().to_string();
     let url = request.url().to_string();
 
-    // Health check for the platform (Railway etc.).
     if url == "/health" || url == "/" {
         return (200, "ok".into());
     }
@@ -243,15 +277,12 @@ fn route(
         return (404, "not found".into());
     }
 
-    // Grab the signature header before consuming the body.
     let signature = request
         .headers()
         .iter()
         .find(|h| h.field.equiv("Paddle-Signature"))
         .map(|h| h.value.as_str().to_string());
 
-    // Bounded body read: reject oversized up front (Content-Length) and cap the
-    // actual read so a lying/absent length can't blow past the limit either.
     if let Some(len) = request.body_length() {
         if len > MAX_BODY_BYTES {
             return (413, "payload too large".into());
@@ -274,7 +305,6 @@ fn route(
             }
         }
     }
-    // Keep the raw body byte-exact for HMAC; Paddle sends UTF-8 JSON.
     let body = match String::from_utf8(buf) {
         Ok(s) => s,
         Err(_) => return (400, "body is not valid UTF-8".into()),
@@ -299,9 +329,6 @@ fn route(
         Ok(v) => v,
         Err(_) => return (400, "invalid json".into()),
     };
-
-    // Only act on completed transactions; acknowledge everything else so Paddle
-    // does not retry.
     let event_type = event
         .get("event_type")
         .and_then(Value::as_str)
@@ -310,46 +337,44 @@ fn route(
         return (200, format!("ignored event {event_type}"));
     }
 
-    match handle_transaction(cfg, agent, idem, &event) {
+    match handle_transaction(cfg, agent, &event) {
         Ok(msg) => (200, msg),
         Err(e) if e.transient => {
-            // 503 → Paddle retries; combined with idempotency this is safe and
-            // means a transient Resend/API blip never drops a paid license.
             eprintln!("transient error, asking Paddle to retry: {}", e.msg);
             (503, "temporary error; please retry".into())
         }
         Err(e) => {
-            // Retrying won't help; surface loudly so the operator can re-issue.
             eprintln!("ALERT permanent handling error (will NOT retry): {}", e.msg);
             (200, "handled with permanent error".into())
         }
     }
 }
 
-fn handle_transaction(
-    cfg: &Config,
-    agent: &ureq::Agent,
-    idem: &Idempotency,
-    event: &Value,
-) -> Result<String, HErr> {
+fn handle_transaction(cfg: &Config, agent: &ureq::Agent, event: &Value) -> Result<String, HErr> {
     let data = event
         .get("data")
         .ok_or_else(|| HErr::permanent("event has no data"))?;
 
-    // One license per Paddle transaction. If we've already fully handled this
-    // transaction, ack without minting/emailing again.
-    let tx_id = data
+    let txn = data
         .get("id")
         .and_then(Value::as_str)
-        .or_else(|| event.get("event_id").and_then(Value::as_str))
-        .map(|s| s.to_string());
-    if let Some(id) = &tx_id {
-        if idem.contains(id) {
-            return Ok(format!("transaction {id} already processed; ignored"));
+        .ok_or_else(|| HErr::permanent("transaction has no id"))?
+        .to_string();
+
+    // Idempotency: if this transaction already issued a license, just re-send it.
+    if let Some(existing) = sb_get_by_txn(agent, cfg, &txn)? {
+        let code = existing
+            .get("license_code")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let email = existing.get("email").and_then(Value::as_str).unwrap_or("");
+        if !code.is_empty() && !email.is_empty() {
+            send_license_email(cfg, agent, email, code)?;
         }
+        return Ok(format!("transaction {txn} already issued; re-sent"));
     }
 
-    // Determine the plan from the purchased price ids.
+    // Plan from the purchased price ids.
     let mut is_lifetime = false;
     let mut is_annual = false;
     if let Some(items) = data.get("items").and_then(Value::as_array) {
@@ -369,48 +394,87 @@ fn handle_transaction(
     if !is_lifetime && !is_annual {
         return Ok("no envyou Pro price in this transaction; ignored".into());
     }
-
-    let (plan, expires_at) = if is_lifetime {
-        ("pro-lifetime".to_string(), None)
+    let (tier, plan, expires_at) = if is_lifetime {
+        ("pro_lifetime", "pro-lifetime", None)
     } else {
-        // Annual: valid ~1 year + a short grace window. The app re-checks expiry
-        // on every load, so this actually lapses.
-        ("pro".to_string(), Some(add_days_iso(372)))
+        ("pro_annual", "pro", Some(add_days_iso(372)))
     };
 
     let email = customer_email(cfg, agent, data)?;
+    let norm_email = normalize_email(&email);
+    let customer_id = data.get("customer_id").and_then(Value::as_str);
 
-    let claims = LicenseClaims {
-        product: PRODUCT.to_string(),
-        plan,
-        hardware_id: None, // floating license — works on any of the buyer's machines
-        issued_at: now_iso8601(),
-        expires_at,
-        features: vec![
-            "unlimited_projects".to_string(),
-            "unlimited_variables".to_string(),
-        ],
-        ..Default::default()
+    // Generate a code + certificate and insert; retry on the (rare) code clash.
+    let mut attempt = 0;
+    let code = loop {
+        attempt += 1;
+        if attempt > MAX_CODE_RETRIES {
+            return Err(HErr::permanent("could not generate a unique license code"));
+        }
+        let id = Uuid::new_v4().to_string();
+        let code = generate_license_code();
+        let claims = LicenseClaims {
+            product: PRODUCT.to_string(),
+            plan: plan.to_string(),
+            hardware_id: None,
+            issued_at: now_iso8601(),
+            expires_at: expires_at.clone(),
+            features: vec![
+                "unlimited_projects".to_string(),
+                "unlimited_variables".to_string(),
+                "mcp".to_string(),
+                "custom_environment_colors".to_string(),
+                "lifetime_updates".to_string(),
+            ],
+            license_id: Some(id.clone()),
+            email_hash: Some(sha256_hex(&norm_email)),
+            code_hash: Some(sha256_hex(&code)),
+            schema_version: Some(2),
+        };
+        let cert = issue_license(&cfg.signing_seed, &claims)
+            .map_err(|e| HErr::permanent(format!("issue certificate failed: {e}")))?;
+
+        let row = json!({
+            "id": id,
+            "license_code": code,
+            "email": email,
+            "normalized_email": norm_email,
+            "product": PRODUCT,
+            "tier": tier,
+            "paddle_transaction_id": txn,
+            "paddle_customer_id": customer_id,
+            "status": "active",
+            "max_activations": MAX_ACTIVATIONS,
+            "signed_certificate": cert,
+        });
+
+        match sb_insert_license(agent, cfg, &row)? {
+            Insert::Created => break code,
+            Insert::ConflictCode => continue, // regenerate
+            Insert::ConflictTxn => {
+                // Raced with another delivery of the same transaction — re-send
+                // whatever is stored and stop.
+                if let Some(existing) = sb_get_by_txn(agent, cfg, &txn)? {
+                    let c = existing
+                        .get("license_code")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    if !c.is_empty() {
+                        send_license_email(cfg, agent, &email, c)?;
+                    }
+                }
+                return Ok(format!("transaction {txn} already issued (raced); re-sent"));
+            }
+        }
     };
 
-    let token = issue_license(&cfg.signing_seed, &claims)
-        .map_err(|e| HErr::permanent(format!("issue_license failed: {e}")))?;
-    send_license_email(cfg, agent, &email, &token)?;
-
-    // Record only after a successful send, so a transient failure that returns
-    // 503 gets retried instead of being marked done.
-    if let Some(id) = &tx_id {
-        idem.mark(id);
-    }
-
-    eprintln!("issued license to {email}");
+    send_license_email(cfg, agent, &email, &code)?;
+    eprintln!("issued license {code} to {email}");
     Ok(format!("license issued to {email}"))
 }
 
-/// Look up the buyer's email. Prefer an email already present on the event;
-/// otherwise fetch the customer via the Paddle API.
+/// Look up the buyer's email — prefer the inline customer object, else Paddle API.
 fn customer_email(cfg: &Config, agent: &ureq::Agent, data: &Value) -> Result<String, HErr> {
-    // Some payloads include the customer object inline.
     if let Some(email) = data
         .get("customer")
         .and_then(|c| c.get("email"))
@@ -442,17 +506,40 @@ fn customer_email(cfg: &Config, agent: &ureq::Agent, data: &Value) -> Result<Str
         .ok_or_else(|| HErr::permanent("customer has no email"))
 }
 
-fn send_license_email(
-    cfg: &Config,
-    agent: &ureq::Agent,
-    to: &str,
-    token: &str,
-) -> Result<(), HErr> {
+fn send_license_email(cfg: &Config, agent: &ureq::Agent, to: &str, code: &str) -> Result<(), HErr> {
+    let deep_link = format!("envyou://activate?email={}&code={}", enc(to), enc(code));
     let text = format!(
-        "Thanks for buying envyou Pro!\n\n\
-         Your license key:\n\n{token}\n\n\
-         To activate: open envyou, click \"Upgrade to Pro\", and paste the key above.\n\
-         Keep this email — it is your proof of purchase.\n",
+        "Thanks for purchasing envyou Pro!\n\n\
+         License email:\n{to}\n\n\
+         License code:\n{code}\n\n\
+         How to activate:\n\
+         1. Download and open envyou:  https://envyou.dev/#download\n\
+         2. Click \"Activate Pro\".\n\
+         3. Enter the license email and license code above.\n\n\
+         One-click activation (if envyou is installed):\n{deep_link}\n\n\
+         Keep this email — it is your proof of purchase.\n\
+         Need help? Contact ceo@eternalsix.com\n\n\
+         — — —\n\
+         envyou Pro 평생 라이선스를 구매해주셔서 감사합니다.\n\
+         라이선스 이메일: {to}\n\
+         라이선스 코드: {code}\n\
+         활성화: envyou를 다운로드해 실행하고 \"Activate Pro\"에서 위 이메일과 코드를 입력하세요.\n",
+    );
+    let html = format!(
+        "<div style=\"font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:520px;margin:auto;color:#111\">\
+         <h2>Thanks for purchasing envyou Pro!</h2>\
+         <p>Your lifetime license is ready.</p>\
+         <p style=\"margin:4px 0\"><b>License email</b><br>{to}</p>\
+         <p style=\"margin:4px 0\"><b>License code</b><br>\
+           <span style=\"font-size:20px;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px;background:#f2f2f2;padding:6px 10px;border-radius:6px;display:inline-block\">{code}</span></p>\
+         <p style=\"margin:18px 0\">\
+           <a href=\"https://envyou.dev/#download\" style=\"background:#000080;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;display:inline-block\">Download envyou</a>\
+           &nbsp;\
+           <a href=\"{deep_link}\" style=\"background:#007000;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;display:inline-block\">Activate envyou Pro</a>\
+         </p>\
+         <p style=\"color:#555;font-size:13px\">If the Activate button does not work, open envyou, click <b>Activate Pro</b>, and paste your license email and code.</p>\
+         <p style=\"color:#555;font-size:13px\">Need help? <a href=\"mailto:ceo@eternalsix.com\">ceo@eternalsix.com</a></p>\
+         </div>",
     );
     let resp = agent
         .post("https://api.resend.com/emails")
@@ -462,25 +549,115 @@ fn send_license_email(
             "to": [to],
             "subject": "Your envyou Pro license",
             "text": text,
+            "html": html,
         }));
     match resp {
         Ok(_) => Ok(()),
-        Err(ureq::Error::Status(code, r)) => {
+        Err(ureq::Error::Status(code_status, r)) => {
             let detail = r.into_string().unwrap_or_default();
-            let transient = code >= 500 || code == 429 || code == 408;
+            let transient = code_status >= 500 || code_status == 429 || code_status == 408;
             Err(HErr {
                 transient,
-                msg: format!("resend returned {code}: {detail}"),
+                msg: format!("resend returned {code_status}: {detail}"),
             })
         }
         Err(e) => Err(HErr::transient(format!("resend request failed: {e}"))),
     }
 }
 
-/// Verify a Paddle Billing `Paddle-Signature` header of the form
-/// `ts=<unix>;h1=<hex hmac>`. The signed payload is `"<ts>:<raw body>"`,
-/// HMAC-SHA256 with the destination's secret key. Also rejects a timestamp more
-/// than `max_age` seconds from `now` (in either direction) to bound replay.
+// ---- Admin CLI ---------------------------------------------------------------
+
+fn cli(f: impl FnOnce(&Config, &ureq::Agent) -> Result<(), String>) {
+    let cfg = load_config();
+    let agent = http_agent();
+    if let Err(e) = f(&cfg, &agent) {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn cli_lookup(cfg: &Config, agent: &ureq::Agent, email: Option<&String>) -> Result<(), String> {
+    let email = email.ok_or("usage: lookup-license <email>")?;
+    let norm = normalize_email(email);
+    let rows = sb_get(
+        agent,
+        cfg,
+        &format!(
+            "licenses?normalized_email=eq.{}&select=license_code,tier,status,activation_count,max_activations,created_at",
+            enc(&norm)
+        ),
+    )
+    .map_err(|e| e.msg)?;
+    if rows.is_empty() {
+        println!("no licenses for {email}");
+        return Ok(());
+    }
+    for r in rows {
+        println!(
+            "{}  tier={}  status={}  activations={}/{}  created={}",
+            r.get("license_code").and_then(Value::as_str).unwrap_or("?"),
+            r.get("tier").and_then(Value::as_str).unwrap_or("?"),
+            r.get("status").and_then(Value::as_str).unwrap_or("?"),
+            r.get("activation_count")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            r.get("max_activations")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            r.get("created_at").and_then(Value::as_str).unwrap_or("?"),
+        );
+    }
+    Ok(())
+}
+
+fn cli_resend(cfg: &Config, agent: &ureq::Agent, email: Option<&String>) -> Result<(), String> {
+    let email = email.ok_or("usage: resend-license <email>")?;
+    let norm = normalize_email(email);
+    let rows = sb_get(
+        agent,
+        cfg,
+        &format!(
+            "licenses?normalized_email=eq.{}&select=email,license_code",
+            enc(&norm)
+        ),
+    )
+    .map_err(|e| e.msg)?;
+    if rows.is_empty() {
+        return Err(format!("no licenses for {email}"));
+    }
+    for r in rows {
+        let to = r.get("email").and_then(Value::as_str).unwrap_or(email);
+        let code = r.get("license_code").and_then(Value::as_str).unwrap_or("");
+        send_license_email(cfg, agent, to, code).map_err(|e| e.msg)?;
+        println!("re-sent {code} to {to}");
+    }
+    Ok(())
+}
+
+fn cli_reset(cfg: &Config, agent: &ureq::Agent, code: Option<&String>) -> Result<(), String> {
+    let code = code.ok_or("usage: reset-activations <license-code>")?;
+    let url = format!(
+        "{}/rest/v1/licenses?license_code=eq.{}",
+        cfg.supabase_url,
+        enc(code)
+    );
+    agent
+        .request("PATCH", &url)
+        .set("apikey", &cfg.supabase_service_key)
+        .set(
+            "Authorization",
+            &format!("Bearer {}", cfg.supabase_service_key),
+        )
+        .set("Content-Type", "application/json")
+        .set("Prefer", "return=minimal")
+        .send_json(json!({ "activation_count": 0 }))
+        .map_err(|e| format!("reset failed: {e}"))?;
+    println!("reset activations for {code}");
+    Ok(())
+}
+
+// ---- Paddle signature --------------------------------------------------------
+
 fn verify_signature(secret: &str, header: &str, body: &str, now: u64, max_age: u64) -> bool {
     let mut ts = "";
     let mut h1 = "";
@@ -494,7 +671,6 @@ fn verify_signature(secret: &str, header: &str, body: &str, now: u64, max_age: u
     if ts.is_empty() || h1.is_empty() {
         return false;
     }
-    // Reject non-numeric or stale/future timestamps before the constant-time MAC.
     match ts.parse::<u64>() {
         Ok(t) => {
             let age = now.abs_diff(t);
@@ -534,7 +710,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-// ---- time helpers (std only) --------------------------------------------
+// ---- time helpers (std only) -------------------------------------------------
 
 fn now_secs() -> u64 {
     SystemTime::now()
@@ -620,7 +796,6 @@ mod tests {
             now,
             300
         ));
-        // Within the window it verifies.
         assert!(verify_signature(
             "sec",
             &sign("sec", now - 100, "b"),
@@ -651,26 +826,9 @@ mod tests {
     }
 
     #[test]
-    fn idempotency_dedupes() {
-        let idem = Idempotency::load(None);
-        assert!(!idem.contains("txn_1"));
-        idem.mark("txn_1");
-        assert!(idem.contains("txn_1"));
-        assert!(!idem.contains("txn_2"));
-    }
-
-    #[test]
-    fn idempotency_persists_across_reload() {
-        let dir = std::env::temp_dir().join(format!("envyou-idem-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let path = dir.join("processed.json");
-        {
-            let idem = Idempotency::load(Some(path.clone()));
-            idem.mark("txn_persist");
-        }
-        // A fresh store loading the same file must still see the id.
-        let reloaded = Idempotency::load(Some(path.clone()));
-        assert!(reloaded.contains("txn_persist"));
-        let _ = std::fs::remove_dir_all(&dir);
+    fn enc_percent_encodes_reserved() {
+        assert_eq!(enc("a b@c.com"), "a%20b%40c.com");
+        assert_eq!(enc("ENVY-K7M4-9Q2P"), "ENVY-K7M4-9Q2P");
+        assert_eq!(enc("x+y/z"), "x%2By%2Fz");
     }
 }

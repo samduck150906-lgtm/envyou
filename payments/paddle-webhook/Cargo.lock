@@ -607,6 +607,7 @@ dependencies = [
  "sha2",
  "tiny_http",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
