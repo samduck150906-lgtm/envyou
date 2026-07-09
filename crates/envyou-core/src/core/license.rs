@@ -63,7 +63,7 @@ pub const PRODUCT: &str = "envyou";
 /// and replace this value, then run `license_tool checkkey` to confirm the new
 /// seed matches. Set it back to [`UNCONFIGURED_PUBLIC_KEY_B64`] (or empty) to
 /// force the build closed.
-pub const LICENSE_PUBLIC_KEY_B64: &str = "EAEkl5eCcd6cnEXb3Ij7DlVIu6BE2/6wxiR/kNM2qEo=";
+pub const LICENSE_PUBLIC_KEY_B64: &str = "7R19v/x+RvGM9dUH3uabOZMWtPt8tI6Iq3Gn7gTHGeg=";
 
 /// Sentinel meaning "no license key configured yet". While
 /// [`LICENSE_PUBLIC_KEY_B64`] equals this (or is empty), the build **fails
