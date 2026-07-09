@@ -50,8 +50,12 @@
       select_project:"Select or create a project.", no_projects:"No projects yet — click + to add one.",
       no_vars:"No variables. Click + to add one.", upgrade_title:"Upgrade to Pro — $59 lifetime",
       upgrade_feats:"Unlimited projects & variables, MCP server, custom env colors.",
-      upgrade_buy:"Buy at envyou.dev — your license key arrives by email. Offline activation.",
+      upgrade_buy:"Buy at envyou.dev — a short license code arrives by email. Enter it here to activate.",
       license_key:"License key", activate:"Activate", cancel:"Cancel",
+      activate_title:"Activate envyou Pro", license_email:"License email", license_code:"License code",
+      activate_pro_btn:"Activate Pro", activating:"Activating…",
+      activate_hint:"Enter the license email and code from your purchase email.",
+      have_cert:"Advanced: I already have a certificate", paste_cert:"Paste signed certificate", paste_btn:"Activate from certificate",
       copy_env:"Copy .env", import_env:"Import .env",
       import_title:"Import from .env", import_hint:"Paste KEY=value lines (a .env file). Existing keys are updated; # comments are ignored.", import_btn:"Import",
       pro_only:"Pro feature", unlock_pro:"Unlock with Pro", lifetime_cta:"One-time $59 — yours forever. No subscription, no renewals.",
@@ -61,8 +65,12 @@
       select_project:"프로젝트를 선택하거나 만드세요.", no_projects:"아직 프로젝트가 없습니다 — +를 눌러 추가하세요.",
       no_vars:"변수가 없습니다. +를 눌러 추가하세요.", upgrade_title:"Pro 업그레이드 — $59 평생",
       upgrade_feats:"무제한 프로젝트·변수, MCP 서버, 커스텀 컬러.",
-      upgrade_buy:"envyou.dev에서 구매 — 라이선스 키는 이메일로. 오프라인 인증.",
+      upgrade_buy:"envyou.dev에서 구매 — 짧은 라이선스 코드가 이메일로 옵니다. 여기에 입력해 활성화하세요.",
       license_key:"라이선스 키", activate:"활성화", cancel:"취소",
+      activate_title:"envyou Pro 활성화", license_email:"라이선스 이메일", license_code:"라이선스 코드",
+      activate_pro_btn:"Pro 활성화", activating:"활성화 중…",
+      activate_hint:"구매 이메일에 있는 라이선스 이메일과 코드를 입력하세요.",
+      have_cert:"고급: 인증서가 이미 있어요", paste_cert:"서명된 인증서 붙여넣기", paste_btn:"인증서로 활성화",
       copy_env:".env 복사", import_env:".env 가져오기",
       import_title:".env 가져오기", import_hint:"KEY=value 형식(.env)을 붙여넣으세요. 기존 키는 업데이트되고, # 주석은 무시됩니다.", import_btn:"가져오기",
       pro_only:"Pro 전용 기능", unlock_pro:"Pro로 잠금 해제", lifetime_cta:"한 번 결제 $59 — 평생 소장. 구독·갱신 없음.",
@@ -1009,22 +1017,51 @@
     upgradeModal(lockNoteKey);
   }
 
-  function upgradeModal(lockNoteKey) {
+  // Live-format a license code as the user types: uppercase, keep only
+  // alphanumerics, and hyphenate in groups of four (e.g. ENVY-K7M4-9Q2P-…).
+  // Doesn't force the ENVY prefix (the Rust side canonicalizes on submit), so
+  // typing "envy…" doesn't double it.
+  function formatLicenseCode(raw) {
+    const s = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
+    return (s.match(/.{1,4}/g) || []).join("-");
+  }
+
+  function upgradeModal(lockNoteKey, prefill) {
     if (state.data.license.isPro) {
-      openModal("Pro License", [
+      openModal(t("activate_title"), [
         el("p", { text: "You are on the Pro tier ✦" }),
-        el("p", { class: "hint", text: "Key: " + (state.data.license.licenseKey || "—") }),
         el("div", { class: "modal-actions" }, [el("button", { class: "btn primary", text: "OK", onclick: closeModal })]),
       ]);
       return;
     }
-    const keyInput = el("input", { type: "text", placeholder: "paste your license key", "aria-label": "License key" });
+    prefill = prefill || {};
+    const emailInput = el("input", { type: "email", placeholder: "you@example.com", "aria-label": t("license_email"), value: prefill.email || "" });
+    const codeInput = el("input", { type: "text", placeholder: "ENVY-XXXX-XXXX-XXXX-XXXX", "aria-label": t("license_code"), value: prefill.code ? formatLicenseCode(prefill.code) : "" });
+    codeInput.addEventListener("input", () => { codeInput.value = formatLicenseCode(codeInput.value); });
     const err = el("p", { class: "error-text" });
+    const activateBtn = el("button", { class: "btn primary", text: t("activate_pro_btn") });
     const activate = async () => {
-      const ok = await run(window.api.activateLicense(keyInput.value), "Pro activated! ✦");
+      err.textContent = "";
+      activateBtn.disabled = true;
+      const prev = activateBtn.textContent;
+      activateBtn.textContent = t("activating");
+      const ok = await run(window.api.activatePro(emailInput.value, codeInput.value), "Pro activated! ✦");
+      activateBtn.disabled = false;
+      activateBtn.textContent = prev;
       if (ok) closeModal();
       else err.textContent = state.lastError;
     };
+    activateBtn.addEventListener("click", activate);
+
+    // Advanced: paste a signed certificate directly (support / offline re-activation).
+    const certInput = el("textarea", { placeholder: "envyou certificate", "aria-label": t("paste_cert"), rows: 3, style: "width:100%;font-family:monospace;font-size:11px" });
+    const certActivate = async () => {
+      err.textContent = "";
+      const ok = await run(window.api.activateCertificate(certInput.value), "Pro activated! ✦");
+      if (ok) closeModal();
+      else err.textContent = state.lastError;
+    };
+
     const buy = () => {
       const url = "https://envyou.dev/#pricing";
       try {
@@ -1034,24 +1071,34 @@
         status("Visit envyou.dev to buy Pro.");
       }
     };
-    openModal(t("upgrade_title"), [
+    openModal(t("activate_title"), [
       // If a specific locked feature triggered this, name it up top.
       lockNoteKey ? el("p", { text: "🔒 " + t(lockNoteKey), style: "font-weight:bold;margin:0 0 6px" }) : null,
       el("p", { class: "hint", text: t("upgrade_feats") }),
-      el("p", { text: t("lifetime_cta"), style: "font-weight:bold;margin:6px 0;color:#000080" }),
       el("div", { class: "modal-actions", style: "margin:8px 0" }, [
         el("button", { class: "btn primary", text: "★ " + t("unlock_pro") + " — $59", onclick: buy }),
       ]),
       el("hr"),
-      el("div", { class: "field" }, [el("label", { text: t("license_key") }), keyInput]),
-      el("p", { class: "hint", text: t("upgrade_buy") }),
+      el("p", { class: "hint", text: t("activate_hint") }),
+      el("div", { class: "field" }, [el("label", { text: t("license_email") }), emailInput]),
+      el("div", { class: "field" }, [el("label", { text: t("license_code") }), codeInput]),
       err,
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: t("cancel"), onclick: closeModal }),
-        el("button", { class: "btn primary", text: t("activate"), onclick: activate }),
+        activateBtn,
+      ]),
+      el("details", { style: "margin-top:10px" }, [
+        el("summary", { text: t("have_cert"), style: "cursor:pointer;font-size:12px;color:#555" }),
+        el("div", { class: "field", style: "margin-top:6px" }, [certInput]),
+        el("div", { class: "modal-actions" }, [
+          el("button", { class: "btn", text: t("paste_btn"), onclick: certActivate }),
+        ]),
       ]),
     ]);
-    keyInput.focus();
+    // Deep-link prefilled both fields → focus Activate; else focus the empty one.
+    if (prefill.email && prefill.code) activateBtn.focus();
+    else if (prefill.email) codeInput.focus();
+    else emailInput.focus();
   }
 
   // ---- Title bar controls ---------------------------------------------------
@@ -1118,7 +1165,7 @@
       status(state.revealAll ? "Values revealed" : "Values masked");
     });
     $("#settings-btn").addEventListener("click", settingsModal);
-    $("#upgrade-btn").addEventListener("click", upgradeModal);
+    $("#upgrade-btn").addEventListener("click", () => upgradeModal());
     $("#pin-btn").addEventListener("click", togglePin);
     $("#min-btn").addEventListener("click", minimize);
     $("#modal-overlay").addEventListener("click", (e) => {
@@ -1140,6 +1187,24 @@
       }
       trapFocus(e);
     });
+
+    // envyou://activate?email=&code= deep links (from the purchase email /
+    // success page): open the Activate Pro modal with the fields pre-filled.
+    try {
+      if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
+        window.__TAURI__.event.listen("deep-link-activate", (evt) => {
+          const payload = evt && evt.payload;
+          const url = Array.isArray(payload) ? payload[0] : payload;
+          if (!url) return;
+          try {
+            const u = new URL(url);
+            const email = u.searchParams.get("email") || "";
+            const code = u.searchParams.get("code") || "";
+            if (email || code) upgradeModal(null, { email, code });
+          } catch (_) {}
+        });
+      }
+    } catch (_) {}
 
     // Gate on the vault lock state before loading any data.
     let vs = { passwordProtected: false, unlocked: true };
