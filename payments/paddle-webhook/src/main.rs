@@ -256,7 +256,15 @@ fn run_server() {
         eprintln!("FATAL: could not bind {addr}: {e}");
         std::process::exit(1);
     });
-    eprintln!("paddle-webhook listening on {addr}");
+    eprintln!(
+        "paddle-webhook listening on {addr} (PRICE_LIFETIME={lifetime} PRICE_ANNUAL={annual})",
+        lifetime = cfg.price_lifetime,
+        annual = if cfg.price_annual.is_empty() {
+            "(unset)"
+        } else {
+            cfg.price_annual.as_str()
+        },
+    );
 
     for mut request in server.incoming_requests() {
         let (status, body) = route(&mut request, &cfg, &agent);
@@ -375,23 +383,48 @@ fn handle_transaction(cfg: &Config, agent: &ureq::Agent, event: &Value) -> Resul
     }
 
     // Plan from the purchased price ids.
+    let seen_prices: Vec<&str> = data
+        .get("items")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    item.get("price")
+                        .and_then(|p| p.get("id"))
+                        .and_then(Value::as_str)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut is_lifetime = false;
     let mut is_annual = false;
-    if let Some(items) = data.get("items").and_then(Value::as_array) {
-        for item in items {
-            let pid = item
-                .get("price")
-                .and_then(|p| p.get("id"))
-                .and_then(Value::as_str)
-                .unwrap_or("");
-            if pid == cfg.price_lifetime {
-                is_lifetime = true;
-            } else if !cfg.price_annual.is_empty() && pid == cfg.price_annual {
-                is_annual = true;
-            }
+    for &pid in &seen_prices {
+        if pid == cfg.price_lifetime {
+            is_lifetime = true;
+        } else if !cfg.price_annual.is_empty() && pid == cfg.price_annual {
+            is_annual = true;
         }
     }
     if !is_lifetime && !is_annual {
+        // A completed purchase that matches none of our configured prices is
+        // almost always a config drift: the checkout's price id changed but the
+        // webhook's PRICE_LIFETIME / PRICE_ANNUAL env vars weren't updated to
+        // match. That silently drops paid licenses, so log LOUDLY with the ids —
+        // this is the first thing to check when "I paid but got no code/email".
+        // Still return 200 so Paddle doesn't retry a pure config error forever.
+        eprintln!(
+            "ALERT no configured price matched transaction {txn}: saw {seen:?}, expected \
+             PRICE_LIFETIME={lifetime} PRICE_ANNUAL={annual}. Fix the webhook env to match the \
+             checkout price id, then re-issue this buyer with `paddle-webhook resend-license`.",
+            seen = seen_prices,
+            lifetime = cfg.price_lifetime,
+            annual = if cfg.price_annual.is_empty() {
+                "(unset)"
+            } else {
+                cfg.price_annual.as_str()
+            },
+        );
         return Ok("no envyou Pro price in this transaction; ignored".into());
     }
     let (tier, plan, expires_at) = if is_lifetime {
