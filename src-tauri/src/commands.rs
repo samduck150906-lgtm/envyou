@@ -139,6 +139,9 @@ pub fn create_project(
     if !s.can_add_project() {
         return Err("Free tier allows up to 3 projects. Upgrade to Pro for unlimited.".into());
     }
+    // Custom env colors are a Pro feature: the free tier is pinned to the default
+    // swatch regardless of what the frontend sent (mirrors the UI's locked picker).
+    let color_tag = s.enforce_color(color_tag);
     s.projects
         .push(ProjectItem::new(name, color_tag, now_iso8601()));
     persist(&state, &s)?;
@@ -165,6 +168,9 @@ pub fn rename_project(
     color_tag: String,
 ) -> CmdResult<EnvYouLocalState> {
     let mut s = load(&state)?;
+    // Compute the tier-allowed color before the mutable project borrow; the free
+    // tier is pinned to the default swatch (custom colors are Pro-only).
+    let color_tag = s.enforce_color(color_tag);
     let p = s
         .project_mut(&project_id)
         .ok_or_else(|| format!("project not found: {project_id}"))?;
@@ -338,8 +344,15 @@ fn store_certificate(state: &State<AppState>, certificate: &str) -> CmdResult<En
 /// Write the `envyou` MCP server entry into Claude Desktop's config, merging
 /// non-destructively (spec §5). Returns the path written.
 #[tauri::command]
-pub fn link_claude_desktop() -> CmdResult<String> {
+pub fn link_claude_desktop(state: State<AppState>) -> CmdResult<String> {
     use envyou_core::core::claude_config;
+
+    // Claude Desktop (MCP) linking is a Pro feature. Gate it on the SIGNED
+    // license — the same source of truth as every other Pro check — so a
+    // bypassed frontend button can't wire up the integration for free.
+    if !load(&state)?.license.is_pro {
+        return Err("Claude Desktop (MCP) linking is a Pro feature. Upgrade to Pro.".into());
+    }
 
     let path = claude_config::config_path().ok_or_else(|| {
         "Claude Desktop config path is not available on this OS (macOS/Windows only).".to_string()

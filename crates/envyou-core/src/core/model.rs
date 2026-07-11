@@ -11,6 +11,13 @@ use uuid::Uuid;
 pub const FREE_MAX_PROJECTS: usize = 3;
 pub const FREE_MAX_VARS_PER_PROJECT: usize = 10;
 
+/// The single environment color available on the free tier; Pro unlocks the
+/// full palette. The frontend's color picker locks every other swatch, and the
+/// backend mirrors that here (see [`EnvYouLocalState::enforce_color`]) so custom
+/// colors are a real Pro feature, not merely a hidden button. Must match the
+/// frontend default swatch (`COLORS[0]` in `app.js`).
+pub const FREE_DEFAULT_COLOR: &str = "#008080";
+
 /// Current on-disk schema version.
 pub const STATE_VERSION: &str = "1.0.0";
 
@@ -157,6 +164,19 @@ impl EnvYouLocalState {
         key_exists || self.can_add_variable(project_id)
     }
 
+    /// The color a project is allowed to use under the current tier: Pro keeps
+    /// any requested color; the free tier is forced back to
+    /// [`FREE_DEFAULT_COLOR`]. Backend counterpart to the UI's Pro-locked color
+    /// picker so a bypassed frontend can't set a custom color for free.
+    pub fn enforce_color(&self, requested: impl Into<String>) -> String {
+        let requested = requested.into();
+        if self.license.is_pro {
+            requested
+        } else {
+            FREE_DEFAULT_COLOR.to_string()
+        }
+    }
+
     pub fn project(&self, project_id: &str) -> Option<&ProjectItem> {
         self.projects.iter().find(|p| p.id == project_id)
     }
@@ -180,6 +200,18 @@ mod tests {
         assert!(!s.license.is_pro);
         assert_eq!(s.settings.global_hotkey, "Ctrl+Shift+E");
         assert_eq!(s.version, STATE_VERSION);
+    }
+
+    #[test]
+    fn free_tier_pins_color_to_default_pro_keeps_custom() {
+        let mut s = EnvYouLocalState::default();
+        assert!(!s.license.is_pro);
+        // Free tier: any requested color collapses to the default swatch.
+        assert_eq!(s.enforce_color("#FF0000"), FREE_DEFAULT_COLOR);
+        assert_eq!(s.enforce_color(FREE_DEFAULT_COLOR), FREE_DEFAULT_COLOR);
+        // Pro: the requested color is kept verbatim.
+        s.license.is_pro = true;
+        assert_eq!(s.enforce_color("#FF0000"), "#FF0000");
     }
 
     #[test]
