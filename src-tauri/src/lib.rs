@@ -46,9 +46,16 @@ pub fn run() {
             // device-bound or not-yet-created vault opens immediately.
             let path = envyou_core::core::storage::default_data_dir()?
                 .join(envyou_core::core::storage::STATE_FILE);
-            let starts_locked = std::fs::read_to_string(&path)
-                .map(|raw| envyou_core::core::crypto::is_password_protected(&raw))
-                .unwrap_or(false);
+            // Fail closed: if the file can't be read as a well-formed envelope
+            // (missing, or corrupted), don't assume it's an unprotected
+            // device-bound vault — leave the store unset. `vault_status` hits
+            // the same check and will surface the same error to the frontend,
+            // which now shows a "couldn't open" screen instead of silently
+            // loading (see `is_password_protected`'s doc comment).
+            let starts_locked = match std::fs::read_to_string(&path) {
+                Ok(raw) => envyou_core::core::crypto::is_password_protected(&raw).unwrap_or(true),
+                Err(_) => false,
+            };
             let store = if starts_locked {
                 None
             } else {

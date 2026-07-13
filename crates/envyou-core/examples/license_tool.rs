@@ -151,8 +151,11 @@ mod issuer {
         rand::thread_rng().fill_bytes(&mut seed);
         let sk = SigningKey::from_bytes(&seed);
 
-        std::fs::write(out, B64.encode(seed)).map_err(|e| e.to_string())?;
-        harden_permissions(out);
+        // Create the file already restricted to the owner (not write-then-chmod):
+        // a chmod *after* the write leaves this private signing key briefly (or,
+        // if the process dies in between, permanently) world-readable at the
+        // default umask.
+        write_new_private_file(out, B64.encode(seed).as_bytes()).map_err(|e| e.to_string())?;
 
         println!("Private key written to: {out}  (keep secret — never commit)");
         println!();
@@ -226,13 +229,24 @@ mod issuer {
         Ok(SigningKey::from_bytes(&seed))
     }
 
+    /// Create `path` exclusively, restricted to the owner from the moment it
+    /// exists (`0600` on unix — set in the `open()` call itself, not via a
+    /// separate `chmod` afterward), and write `contents` to it.
     #[cfg(unix)]
-    fn harden_permissions(path: &str) {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    fn write_new_private_file(path: &str, contents: &[u8]) -> std::io::Result<()> {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)?;
+        f.write_all(contents)
     }
     #[cfg(not(unix))]
-    fn harden_permissions(_path: &str) {}
+    fn write_new_private_file(path: &str, contents: &[u8]) -> std::io::Result<()> {
+        std::fs::write(path, contents)
+    }
 
     fn now_iso8601() -> String {
         let secs = SystemTime::now()

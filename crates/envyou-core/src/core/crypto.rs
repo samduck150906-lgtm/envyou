@@ -92,12 +92,15 @@ struct Envelope {
 /// Whether this envelope is password-protected (v2 / Argon2id). Lets the storage
 /// layer decide whether it needs a master password before unlocking, without
 /// decrypting first.
-pub fn is_password_protected(envelope_json: &str) -> bool {
-    serde_json::from_str::<Envelope>(envelope_json)
-        .ok()
-        .and_then(|e| e.kdf)
-        .as_deref()
-        == Some(KDF_ARGON2ID)
+///
+/// Errors (rather than silently returning `false`) if `envelope_json` isn't a
+/// well-formed envelope, so a corrupted state file is reported as corrupted —
+/// not misread as an unprotected, device-bound vault the UI would then try to
+/// open with the wrong (device-key) unlock path.
+pub fn is_password_protected(envelope_json: &str) -> Result<bool> {
+    let envelope: Envelope = serde_json::from_str(envelope_json)
+        .map_err(|e| Error::Crypto(format!("malformed encrypted envelope: {e}")))?;
+    Ok(envelope.kdf.as_deref() == Some(KDF_ARGON2ID))
 }
 
 fn seal(
@@ -245,7 +248,7 @@ mod tests {
         let msg = b"STRIPE_KEY=sk_live_shouldstayhidden";
         let env = encrypt_with_password(b"correct horse battery staple", msg).unwrap();
         assert!(!env.contains("sk_live"), "envelope must not leak plaintext");
-        assert!(is_password_protected(&env));
+        assert!(is_password_protected(&env).unwrap());
         let out = decrypt_with_password(b"correct horse battery staple", &env).unwrap();
         assert_eq!(out, msg);
     }
@@ -275,7 +278,7 @@ mod tests {
     fn v1_envelope_is_not_flagged_password_protected() {
         let key = MasterKey::derive(b"machine");
         let env = encrypt(&key, b"data").unwrap();
-        assert!(!is_password_protected(&env));
+        assert!(!is_password_protected(&env).unwrap());
         // And a device-bound (v1) envelope cannot be opened via the password path.
         assert!(decrypt_with_password(b"anything", &env).is_err());
     }

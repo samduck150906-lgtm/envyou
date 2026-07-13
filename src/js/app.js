@@ -767,6 +767,7 @@
       () => proLockedModal("locked_color")
     );
     const err = el("p", { class: "error-text" });
+    const saveBtn = el("button", { class: "btn primary", text: "Save" });
 
     const save = async () => {
       const name = nameInput.value.trim();
@@ -774,6 +775,11 @@
         err.textContent = "Name is required.";
         return;
       }
+      // Guard against double-click / double-submit: without this, two rapid
+      // clicks could both pass the client-side free-tier check before either
+      // request's result comes back, sending duplicate create/rename calls.
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
       // Snapshot existing ids so we can identify the newly-created project by id
       // rather than assuming it is last in the returned array (the backend may
       // order projects differently).
@@ -781,6 +787,7 @@
       const ok = existing
         ? await run(window.api.renameProject(existing.id, name, picker.get()), "Saved")
         : await run(window.api.createProject(name, picker.get()), "Project created");
+      saveBtn.disabled = false;
       if (ok) {
         if (!existing) {
           const created = state.data.projects.find((p) => !priorIds.has(p.id));
@@ -792,6 +799,7 @@
         err.textContent = state.lastError;
       }
     };
+    saveBtn.addEventListener("click", save);
 
     openModal(existing ? "Edit Project" : "New Project", [
       el("div", { class: "field" }, [el("label", { text: "Name" }), nameInput]),
@@ -811,7 +819,7 @@
             })
           : null,
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
-        el("button", { class: "btn primary", text: "Save", onclick: save }),
+        saveBtn,
       ]),
     ]);
     nameInput.focus();
@@ -837,6 +845,7 @@
     const maskCheck = el("input", { type: "checkbox" });
     maskCheck.checked = d.mask != null ? d.mask : existing ? existing.isMasked : true;
     const err = el("p", { class: "error-text" });
+    const saveBtn = el("button", { class: "btn primary", text: "Save" });
 
     const save = async () => {
       const key = keyInput.value.trim();
@@ -844,13 +853,17 @@
         err.textContent = "Key is required.";
         return;
       }
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
       const ok = await run(
         window.api.upsertVariable(project.id, key, valInput.value, commentInput.value.trim() || null, maskCheck.checked),
         "Saved " + key
       );
+      saveBtn.disabled = false;
       if (ok) closeModal();
       else err.textContent = state.lastError;
     };
+    saveBtn.addEventListener("click", save);
 
     openModal(existing ? "Edit Variable" : "New Variable", [
       el("div", { class: "field" }, [el("label", { text: "Key" }), keyInput]),
@@ -876,7 +889,7 @@
       err,
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
-        el("button", { class: "btn primary", text: "Save", onclick: save }),
+        saveBtn,
       ]),
     ]);
     (existing ? valInput : keyInput).focus();
@@ -891,8 +904,11 @@
     const mask = el("input", { type: "checkbox" });
     mask.checked = s.maskSensitiveData;
     const claudeMsg = el("p", { class: "hint" });
+    const saveBtn = el("button", { class: "btn primary", text: "Save" });
 
     const save = async () => {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
       const newSettings = {
         globalHotkey: hotkey.value.trim() || "Ctrl+Shift+E",
         alwaysOnTop: aot.checked,
@@ -900,11 +916,17 @@
       };
       const ok = await run(window.api.saveSettings(newSettings), "Settings saved");
       if (ok) {
-        window.api.setAlwaysOnTop(newSettings.alwaysOnTop);
+        try {
+          await window.api.setAlwaysOnTop(newSettings.alwaysOnTop);
+        } catch (e) {
+          status("Settings saved, but pin-to-top failed: " + e);
+        }
         updatePinButton();
         closeModal();
       }
+      saveBtn.disabled = false;
     };
+    saveBtn.addEventListener("click", save);
 
     openModal("Settings", [
       el("div", { class: "field" }, [el("label", { text: "Global hotkey" }), hotkey]),
@@ -942,7 +964,7 @@
       ]),
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
-        el("button", { class: "btn primary", text: "Save", onclick: save }),
+        saveBtn,
       ]),
     ]);
   }
@@ -1113,9 +1135,13 @@
     pinned = !pinned;
     const s = { ...state.data.settings, alwaysOnTop: pinned };
     await run(window.api.saveSettings(s));
-    window.api.setAlwaysOnTop(pinned);
+    try {
+      await window.api.setAlwaysOnTop(pinned);
+      status(pinned ? "Pinned on top" : "Unpinned");
+    } catch (e) {
+      status("Could not change pin-to-top: " + e);
+    }
     updatePinButton();
-    status(pinned ? "Pinned on top" : "Unpinned");
   }
 
   function minimize() {
@@ -1206,12 +1232,16 @@
       }
     } catch (_) {}
 
-    // Gate on the vault lock state before loading any data.
-    let vs = { passwordProtected: false, unlocked: true };
+    // Gate on the vault lock state before loading any data. If the check
+    // itself fails, fail CLOSED (show a retry screen) rather than assuming
+    // the vault is unlocked — silently falling through here would skip the
+    // master-password screen on a protected vault after a transient IPC error.
+    let vs;
     try {
       vs = await window.api.vaultStatus();
     } catch (e) {
-      status("Could not read vault status: " + e);
+      showVaultStatusError(e);
+      return;
     }
     if (vs.passwordProtected && !vs.unlocked) {
       if (!window.api.inTauri) status("Browser preview (mock data)");
@@ -1221,6 +1251,22 @@
     await refresh();
     updatePinButton();
     if (!window.api.inTauri) status("Browser preview (mock data)");
+  }
+
+  function showVaultStatusError(err) {
+    state.locked = true;
+    openModal(
+      "Could not open envyou",
+      [
+        el("p", { class: "hint", text: "The vault's lock status could not be checked, so it can't be opened safely." }),
+        el("p", { class: "error-text", text: String(err) }),
+        el("div", { class: "modal-actions" }, [
+          el("button", { class: "btn primary", text: "Retry", onclick: () => { closeModal(); init(); } }),
+        ]),
+      ],
+      false // not dismissible
+    );
+    status("Could not read vault status: " + err);
   }
 
   document.addEventListener("DOMContentLoaded", init);

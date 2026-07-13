@@ -23,6 +23,8 @@
 //!   paddle-webhook lookup-license    <email>
 //!   paddle-webhook resend-license    <email>
 //!   paddle-webhook reset-activations <license-code>
+//!   paddle-webhook revoke-license    <license-code>
+//!   paddle-webhook reactivate-license <license-code>
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use envyou_core::core::license::{
@@ -221,6 +223,29 @@ fn sb_get_by_txn(agent: &ureq::Agent, cfg: &Config, txn: &str) -> Result<Option<
     Ok(rows.into_iter().next())
 }
 
+fn sb_revoke_by_txn(agent: &ureq::Agent, cfg: &Config, txn: &str) -> Result<(), HErr> {
+    let url = format!(
+        "{}/rest/v1/licenses?paddle_transaction_id=eq.{}",
+        cfg.supabase_url,
+        enc(txn)
+    );
+    agent
+        .request("PATCH", &url)
+        .set("apikey", &cfg.supabase_service_key)
+        .set(
+            "Authorization",
+            &format!("Bearer {}", cfg.supabase_service_key),
+        )
+        .set("Content-Type", "application/json")
+        .set("Prefer", "return=minimal")
+        .send_json(json!({ "status": "revoked" }))
+        .map_err(|e| HErr {
+            transient: ureq_transient(&e),
+            msg: format!("supabase PATCH (revoke) failed: {e}"),
+        })?;
+    Ok(())
+}
+
 /// Percent-encode a value for a PostgREST query string / URL.
 fn enc(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -243,6 +268,12 @@ fn main() {
         Some("lookup-license") => cli(|cfg, agent| cli_lookup(cfg, agent, args.get(1))),
         Some("resend-license") => cli(|cfg, agent| cli_resend(cfg, agent, args.get(1))),
         Some("reset-activations") => cli(|cfg, agent| cli_reset(cfg, agent, args.get(1))),
+        Some("revoke-license") => {
+            cli(|cfg, agent| cli_set_status(cfg, agent, args.get(1), "revoked"))
+        }
+        Some("reactivate-license") => {
+            cli(|cfg, agent| cli_set_status(cfg, agent, args.get(1), "active"))
+        }
         _ => run_server(),
     }
 }
@@ -340,12 +371,21 @@ fn route(request: &mut tiny_http::Request, cfg: &Config, agent: &ureq::Agent) ->
     let event_type = event
         .get("event_type")
         .and_then(Value::as_str)
-        .unwrap_or("");
-    if event_type != "transaction.completed" {
-        return (200, format!("ignored event {event_type}"));
-    }
+        .unwrap_or("")
+        .to_string();
 
-    match handle_transaction(cfg, agent, &event) {
+    let result = match event_type.as_str() {
+        "transaction.completed" => handle_transaction(cfg, agent, &event),
+        // Paddle Billing reports refunds and chargebacks as `adjustment.created`
+        // (action: "refund" | "chargeback" | "credit") referencing the original
+        // transaction. Revoking `status` blocks *new* activations immediately;
+        // devices that already activated keep their offline-verified certificate
+        // until the app re-checks online (see docs/LICENSE_SYSTEM.md).
+        "adjustment.created" => handle_adjustment(cfg, agent, &event),
+        _ => return (200, format!("ignored event {event_type}")),
+    };
+
+    match result {
         Ok(msg) => (200, msg),
         Err(e) if e.transient => {
             eprintln!("transient error, asking Paddle to retry: {}", e.msg);
@@ -506,6 +546,63 @@ fn handle_transaction(cfg: &Config, agent: &ureq::Agent, event: &Value) -> Resul
     Ok(format!("license issued to {email}"))
 }
 
+/// Refund or chargeback on a transaction we issued a license for: flip
+/// `status` to `revoked` so `activate_license` refuses further activations.
+/// A `credit` adjustment (partial goodwill credit, not a full refund) is left
+/// alone.
+fn handle_adjustment(cfg: &Config, agent: &ureq::Agent, event: &Value) -> Result<String, HErr> {
+    let data = event
+        .get("data")
+        .ok_or_else(|| HErr::permanent("adjustment event has no data"))?;
+
+    let action = data.get("action").and_then(Value::as_str).unwrap_or("");
+    if action != "refund" && action != "chargeback" {
+        return Ok(format!("adjustment action {action} does not revoke a license; ignored"));
+    }
+
+    let txn = data
+        .get("transaction_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| HErr::permanent("adjustment has no transaction_id"))?;
+
+    let Some(existing) = sb_get_by_txn(agent, cfg, txn)? else {
+        // No license was ever issued for this transaction (e.g. it never
+        // matched a configured price) — nothing to revoke.
+        return Ok(format!("no license for transaction {txn}; nothing to revoke"));
+    };
+    let code = existing
+        .get("license_code")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let status = existing.get("status").and_then(Value::as_str).unwrap_or("");
+    if status == "revoked" {
+        return Ok(format!("license {code} already revoked"));
+    }
+
+    sb_revoke_by_txn(agent, cfg, txn)?;
+    eprintln!("revoked license {code} for transaction {txn} ({action})");
+    Ok(format!("license {code} revoked ({action})"))
+}
+
+/// Coarse but sane email-shape check: exactly one `@`, non-empty local and
+/// domain parts, no whitespace, and a `.` in the domain. Not a full RFC 5322
+/// validator (Resend rejects genuinely malformed addresses anyway) — this
+/// just stops obvious junk like `"foo@"` or `"@bar"` from slipping past the
+/// old `.contains('@')` check.
+fn looks_like_email(s: &str) -> bool {
+    if s.chars().any(|c| c.is_whitespace()) {
+        return false;
+    }
+    let Some((local, domain)) = s.split_once('@') else {
+        return false;
+    };
+    !local.is_empty()
+        && !domain.is_empty()
+        && !domain.contains('@')
+        && domain.contains('.')
+        && !domain.starts_with('.')
+}
+
 /// Look up the buyer's email. Prefer the `license_email` the buyer typed on the
 /// landing page (carried in `custom_data`) so the code goes exactly where they
 /// expect, then the inline customer object, then the Paddle API.
@@ -518,7 +615,7 @@ fn customer_email(cfg: &Config, agent: &ureq::Agent, data: &Value) -> Result<Str
         .get("custom_data")
         .and_then(|c| c.get("license_email"))
         .and_then(Value::as_str)
-        .filter(|e| e.contains('@'))
+        .filter(|e| looks_like_email(e))
     {
         if inline.is_some_and(|c| !c.eq_ignore_ascii_case(license_email)) {
             eprintln!("note: custom_data.license_email differs from Paddle customer email; using custom_data");
@@ -702,6 +799,33 @@ fn cli_reset(cfg: &Config, agent: &ureq::Agent, code: Option<&String>) -> Result
     Ok(())
 }
 
+fn cli_set_status(
+    cfg: &Config,
+    agent: &ureq::Agent,
+    code: Option<&String>,
+    status: &str,
+) -> Result<(), String> {
+    let code = code.ok_or_else(|| format!("usage: {status}-license <license-code>"))?;
+    let url = format!(
+        "{}/rest/v1/licenses?license_code=eq.{}",
+        cfg.supabase_url,
+        enc(code)
+    );
+    agent
+        .request("PATCH", &url)
+        .set("apikey", &cfg.supabase_service_key)
+        .set(
+            "Authorization",
+            &format!("Bearer {}", cfg.supabase_service_key),
+        )
+        .set("Content-Type", "application/json")
+        .set("Prefer", "return=minimal")
+        .send_json(json!({ "status": status }))
+        .map_err(|e| format!("set-status failed: {e}"))?;
+    println!("license {code} status set to {status}");
+    Ok(())
+}
+
 // ---- Paddle signature --------------------------------------------------------
 
 fn verify_signature(secret: &str, header: &str, body: &str, now: u64, max_age: u64) -> bool {
@@ -876,5 +1000,22 @@ mod tests {
         assert_eq!(enc("a b@c.com"), "a%20b%40c.com");
         assert_eq!(enc("ENVY-K7M4-9Q2P"), "ENVY-K7M4-9Q2P");
         assert_eq!(enc("x+y/z"), "x%2By%2Fz");
+    }
+
+    #[test]
+    fn looks_like_email_accepts_sane_addresses() {
+        assert!(looks_like_email("buyer@example.com"));
+        assert!(looks_like_email("a.b+tag@sub.example.co"));
+    }
+
+    #[test]
+    fn looks_like_email_rejects_junk() {
+        assert!(!looks_like_email("foo@"));
+        assert!(!looks_like_email("@bar.com"));
+        assert!(!looks_like_email("no-at-sign"));
+        assert!(!looks_like_email("two@@at.com"));
+        assert!(!looks_like_email("has space@example.com"));
+        assert!(!looks_like_email("foo@bar")); // no dot in domain
+        assert!(!looks_like_email("foo@.com")); // domain starts with dot
     }
 }

@@ -17,7 +17,17 @@ Paddle transaction.completed
   → generate short code + mint Ed25519-signed certificate (envyou-core, key from env)
   → INSERT into Supabase licenses (idempotent on paddle_transaction_id)
   → email the SHORT CODE + envyou://activate deep link (Resend)
+
+Paddle adjustment.created (action: refund | chargeback)
+  → verify Paddle-Signature
+  → look up the license by the adjustment's transaction_id
+  → PATCH licenses.status = 'revoked' (blocks further activate_license calls)
 ```
+
+Revocation only blocks **new** activations — a device that already activated
+keeps its offline-verified certificate until the app re-checks online (it
+currently doesn't). `credit` adjustments (partial goodwill credits, not full
+refunds) do not revoke anything.
 
 ## Endpoints
 
@@ -87,9 +97,11 @@ Run with the same env (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` at minimum;
 `resend-license` also needs `RESEND_API_KEY`/`EMAIL_FROM`):
 
 ```bash
-paddle-webhook lookup-license    <email>        # code, tier, status, activations, created
-paddle-webhook resend-license    <email>        # re-send the license email
-paddle-webhook reset-activations <license-code> # set activation_count back to 0
+paddle-webhook lookup-license     <email>        # code, tier, status, activations, created
+paddle-webhook resend-license     <email>        # re-send the license email
+paddle-webhook reset-activations  <license-code> # set activation_count back to 0
+paddle-webhook revoke-license     <license-code> # set status = 'revoked' (manual refund/support)
+paddle-webhook reactivate-license <license-code> # set status = 'active' (undo a mistaken revoke)
 ```
 
 ## Before going live — prove the app will accept your licenses
@@ -117,7 +129,9 @@ ENVYOU_SIGNING_KEY_B64=<railway value> \
 4. Deploy → Railway gives a public URL like `https://<name>.up.railway.app`.
 5. In **Paddle → Developer Tools → Notifications**, set the destination URL to
    `https://<name>.up.railway.app/webhook/paddle` and subscribe to
-   `transaction.completed`.
+   `transaction.completed` **and `adjustment.created`** (the latter revokes a
+   license's `status` on refund/chargeback — without it, refunded buyers keep
+   a working license).
 
 ## Test in Sandbox first
 

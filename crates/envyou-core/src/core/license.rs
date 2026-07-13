@@ -245,6 +245,15 @@ fn verify_license_with_key(
         }
     }
     if let Some(exp) = &claims.expires_at {
+        if !is_valid_iso8601_shape(exp) {
+            // `is_expired` relies on lexicographic == chronological ordering,
+            // which only holds for this exact fixed-width shape. Reject
+            // rather than silently comparing wrong (which could read a
+            // genuinely expired license as unexpired, or vice versa).
+            return Err(Error::License(format!(
+                "license has a malformed expiry timestamp: {exp}"
+            )));
+        }
         if is_expired(exp) {
             return Err(Error::License(format!("license expired on {exp}")));
         }
@@ -408,9 +417,30 @@ pub fn issue_license(signing_key_bytes: &[u8; 32], claims: &LicenseClaims) -> Re
 
 /// Whether an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ`) is in the past.
 /// Such timestamps sort lexicographically, so a string compare against "now"
-/// is correct without a date-time dependency.
+/// is correct without a date-time dependency — but only for this exact
+/// fixed-width shape; callers must check [`is_valid_iso8601_shape`] first.
 fn is_expired(expires_at: &str) -> bool {
     expires_at < now_iso8601().as_str()
+}
+
+/// Whether `s` is exactly `YYYY-MM-DDTHH:MM:SSZ` (fixed-width, ASCII digits,
+/// literal separators) — the only shape for which a lexicographic string
+/// compare in [`is_expired`] is guaranteed to match chronological order.
+fn is_valid_iso8601_shape(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 20
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b[10] == b'T'
+        && b[13] == b':'
+        && b[16] == b':'
+        && b[19] == b'Z'
+        && b[0..4].iter().all(u8::is_ascii_digit)
+        && b[5..7].iter().all(u8::is_ascii_digit)
+        && b[8..10].iter().all(u8::is_ascii_digit)
+        && b[11..13].iter().all(u8::is_ascii_digit)
+        && b[14..16].iter().all(u8::is_ascii_digit)
+        && b[17..19].iter().all(u8::is_ascii_digit)
 }
 
 /// Current UTC time as `YYYY-MM-DDTHH:MM:SSZ` using only `std`.
@@ -532,6 +562,19 @@ mod tests {
         claims.expires_at = Some("2999-01-01T00:00:00Z".into());
         let lic = issue(&sk, &claims);
         assert!(verify_license_with_key(&lic, "machine-A", &vk).is_ok());
+    }
+
+    #[test]
+    fn malformed_expiry_shape_is_rejected_not_miscompared() {
+        let sk = test_signing_key();
+        let vk = sk.verifying_key();
+        let mut claims = pro_claims();
+        // Valid ISO-8601 (has fractional seconds), but not the exact fixed-width
+        // shape `is_expired`'s lexicographic compare assumes.
+        claims.expires_at = Some("2999-01-01T00:00:00.000Z".into());
+        let lic = issue(&sk, &claims);
+        let err = verify_license_with_key(&lic, "machine-A", &vk).unwrap_err();
+        assert!(err.to_string().contains("malformed expiry"));
     }
 
     #[test]

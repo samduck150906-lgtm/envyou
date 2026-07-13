@@ -37,10 +37,23 @@ fn with_verified_pro(mut s: EnvYouLocalState) -> EnvYouLocalState {
     s
 }
 
-fn persist(state: &State<AppState>, s: &EnvYouLocalState) -> CmdResult<()> {
+/// Load, let `f` mutate the state, then persist — all under a single lock
+/// acquisition. `load`/`persist` used to be called back-to-back, each taking
+/// and releasing the mutex independently; two commands issued close together
+/// (Tauri dispatches each on its own thread) could both load the same
+/// on-disk state and then persist in sequence, silently discarding one of
+/// the two changes. Holding the lock for the whole read-modify-write closes
+/// that window.
+fn with_state<F>(state: &State<AppState>, f: F) -> CmdResult<EnvYouLocalState>
+where
+    F: FnOnce(&mut EnvYouLocalState) -> CmdResult<()>,
+{
     let guard = state.store.lock().map_err(|_| "state lock poisoned")?;
     let store = guard.as_ref().ok_or_else(vault_locked_err)?;
-    store.save(s).map_err(|e| e.to_string())
+    let mut s = with_verified_pro(store.load().map_err(|e| e.to_string())?);
+    f(&mut s)?;
+    store.save(&s).map_err(|e| e.to_string())?;
+    Ok(s)
 }
 
 fn vault_locked_err() -> String {
@@ -73,7 +86,7 @@ pub fn vault_status(state: State<AppState>) -> CmdResult<VaultStatus> {
     let exists = path.exists();
     let password_protected = if exists {
         let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        crypto::is_password_protected(&raw)
+        crypto::is_password_protected(&raw).map_err(|e| e.to_string())?
     } else {
         false
     };
@@ -115,7 +128,10 @@ pub fn set_master_password(
         return Err("master password must be at least 8 characters".into());
     }
     let mut guard = state.store.lock().map_err(|_| "state lock poisoned")?;
-    let current = guard.take().ok_or_else(vault_locked_err)?;
+    let current = guard.as_ref().ok_or_else(vault_locked_err)?;
+    // Borrow, don't take: if migration fails partway (e.g. a disk write
+    // error), `current` is still valid and the vault must not end up
+    // permanently "locked" for a session that was fine a moment ago.
     let migrated = current
         .migrate_to_password(password)
         .map_err(|e| e.to_string())?;
@@ -135,29 +151,30 @@ pub fn create_project(
     name: String,
     color_tag: String,
 ) -> CmdResult<EnvYouLocalState> {
-    let mut s = load(&state)?;
-    if !s.can_add_project() {
-        return Err("Free tier allows up to 3 projects. Upgrade to Pro for unlimited.".into());
-    }
-    // Custom env colors are a Pro feature: the free tier is pinned to the default
-    // swatch regardless of what the frontend sent (mirrors the UI's locked picker).
-    let color_tag = s.enforce_color(color_tag);
-    s.projects
-        .push(ProjectItem::new(name, color_tag, now_iso8601()));
-    persist(&state, &s)?;
-    Ok(s)
+    with_state(&state, |s| {
+        if !s.can_add_project() {
+            return Err("Free tier allows up to 3 projects. Upgrade to Pro for unlimited.".into());
+        }
+        // Custom env colors are a Pro feature: the free tier is pinned to the
+        // default swatch regardless of what the frontend sent (mirrors the
+        // UI's locked picker).
+        let color_tag = s.enforce_color(color_tag);
+        s.projects
+            .push(ProjectItem::new(name, color_tag, now_iso8601()));
+        Ok(())
+    })
 }
 
 #[tauri::command]
 pub fn delete_project(state: State<AppState>, project_id: String) -> CmdResult<EnvYouLocalState> {
-    let mut s = load(&state)?;
-    let before = s.projects.len();
-    s.projects.retain(|p| p.id != project_id);
-    if s.projects.len() == before {
-        return Err(format!("project not found: {project_id}"));
-    }
-    persist(&state, &s)?;
-    Ok(s)
+    with_state(&state, |s| {
+        let before = s.projects.len();
+        s.projects.retain(|p| p.id != project_id);
+        if s.projects.len() == before {
+            return Err(format!("project not found: {project_id}"));
+        }
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -167,17 +184,18 @@ pub fn rename_project(
     name: String,
     color_tag: String,
 ) -> CmdResult<EnvYouLocalState> {
-    let mut s = load(&state)?;
-    // Compute the tier-allowed color before the mutable project borrow; the free
-    // tier is pinned to the default swatch (custom colors are Pro-only).
-    let color_tag = s.enforce_color(color_tag);
-    let p = s
-        .project_mut(&project_id)
-        .ok_or_else(|| format!("project not found: {project_id}"))?;
-    p.name = name;
-    p.color_tag = color_tag;
-    persist(&state, &s)?;
-    Ok(s)
+    with_state(&state, |s| {
+        // Compute the tier-allowed color before the mutable project borrow;
+        // the free tier is pinned to the default swatch (custom colors are
+        // Pro-only).
+        let color_tag = s.enforce_color(color_tag);
+        let p = s
+            .project_mut(&project_id)
+            .ok_or_else(|| format!("project not found: {project_id}"))?;
+        p.name = name;
+        p.color_tag = color_tag;
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -189,34 +207,34 @@ pub fn upsert_variable(
     comment: Option<String>,
     is_masked: bool,
 ) -> CmdResult<EnvYouLocalState> {
-    let mut s = load(&state)?;
-    // Only enforce the cap when adding a brand-new key; existing keys may always
-    // be updated. Shares `can_write_variable` with the MCP path so both enforce
-    // an identical free-tier policy.
-    if !s.can_write_variable(&project_id, &key) {
-        if s.project(&project_id).is_none() {
-            return Err(format!("project not found: {project_id}"));
+    with_state(&state, |s| {
+        // Only enforce the cap when adding a brand-new key; existing keys may
+        // always be updated. Shares `can_write_variable` with the MCP path so
+        // both enforce an identical free-tier policy.
+        if !s.can_write_variable(&project_id, &key) {
+            if s.project(&project_id).is_none() {
+                return Err(format!("project not found: {project_id}"));
+            }
+            return Err("Free tier allows up to 10 variables per project. Upgrade to Pro.".into());
         }
-        return Err("Free tier allows up to 10 variables per project. Upgrade to Pro.".into());
-    }
-    let p = s
-        .project_mut(&project_id)
-        .ok_or_else(|| format!("project not found: {project_id}"))?;
-    match p.variables.iter_mut().find(|v| v.key == key) {
-        Some(v) => {
-            v.value = value;
-            v.comment = comment;
-            v.is_masked = is_masked;
+        let p = s
+            .project_mut(&project_id)
+            .ok_or_else(|| format!("project not found: {project_id}"))?;
+        match p.variables.iter_mut().find(|v| v.key == key) {
+            Some(v) => {
+                v.value = value;
+                v.comment = comment;
+                v.is_masked = is_masked;
+            }
+            None => p.variables.push(EnvVariable {
+                key,
+                value,
+                comment,
+                is_masked,
+            }),
         }
-        None => p.variables.push(EnvVariable {
-            key,
-            value,
-            comment,
-            is_masked,
-        }),
-    }
-    persist(&state, &s)?;
-    Ok(s)
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -225,21 +243,21 @@ pub fn delete_variable(
     project_id: String,
     key: String,
 ) -> CmdResult<EnvYouLocalState> {
-    let mut s = load(&state)?;
-    let p = s
-        .project_mut(&project_id)
-        .ok_or_else(|| format!("project not found: {project_id}"))?;
-    p.variables.retain(|v| v.key != key);
-    persist(&state, &s)?;
-    Ok(s)
+    with_state(&state, |s| {
+        let p = s
+            .project_mut(&project_id)
+            .ok_or_else(|| format!("project not found: {project_id}"))?;
+        p.variables.retain(|v| v.key != key);
+        Ok(())
+    })
 }
 
 #[tauri::command]
 pub fn save_settings(state: State<AppState>, settings: Settings) -> CmdResult<EnvYouLocalState> {
-    let mut s = load(&state)?;
-    s.settings = settings;
-    persist(&state, &s)?;
-    Ok(s)
+    with_state(&state, |s| {
+        s.settings = settings;
+        Ok(())
+    })
 }
 
 /// Supabase project that hosts the license store + activation RPC. Both the URL
@@ -333,12 +351,12 @@ fn store_certificate(state: &State<AppState>, certificate: &str) -> CmdResult<En
     if !license::grants_pro(&claims) {
         return Err("this certificate does not include the Pro plan".into());
     }
-    let mut s = load(state)?;
-    s.license.is_pro = true;
-    s.license.license_key = Some(certificate.trim().to_string());
-    s.license.activated_at = Some(now_iso8601());
-    persist(state, &s)?;
-    Ok(s)
+    with_state(state, |s| {
+        s.license.is_pro = true;
+        s.license.license_key = Some(certificate.trim().to_string());
+        s.license.activated_at = Some(now_iso8601());
+        Ok(())
+    })
 }
 
 /// Write the `envyou` MCP server entry into Claude Desktop's config, merging

@@ -81,7 +81,7 @@ impl Store {
             return Ok(false);
         }
         let envelope = fs::read_to_string(&self.path)?;
-        Ok(crypto::is_password_protected(&envelope))
+        crypto::is_password_protected(&envelope)
     }
 
     /// Load and decrypt state, returning [`EnvYouLocalState::default`] if the
@@ -93,7 +93,7 @@ impl Store {
         let envelope = fs::read_to_string(&self.path)?;
         let plaintext = match &self.key {
             KeySource::Device(key) => {
-                if crypto::is_password_protected(&envelope) {
+                if crypto::is_password_protected(&envelope)? {
                     return Err(Error::Crypto(
                         "vault is password-protected; unlock with a master password".into(),
                     ));
@@ -116,8 +116,18 @@ impl Store {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
-        // Write to a temp file then rename for atomicity / crash safety.
-        let tmp = self.path.with_extension("json.tmp");
+        // Write to a uniquely-named temp file then rename for atomicity / crash
+        // safety. The temp name includes the PID and a random suffix so two
+        // concurrent `save()` calls on the same path (e.g. the GUI and a
+        // `--mcp` process both writing `enc_state.json`) never share a temp
+        // file — with a fixed name, one writer's content could land in the
+        // other's rename, silently discarding whichever write lost the race.
+        let mut nonce = [0u8; 8];
+        rand::thread_rng().fill_bytes(&mut nonce);
+        let nonce_hex: String = nonce.iter().map(|b| format!("{b:02x}")).collect();
+        let tmp =
+            self.path
+                .with_extension(format!("json.tmp.{}.{}", std::process::id(), nonce_hex));
         fs::write(&tmp, envelope.as_bytes())?;
         fs::rename(&tmp, &self.path)?;
         Ok(())
@@ -128,9 +138,13 @@ impl Store {
     ///
     /// Reads with the current key source, so it works whether the vault is
     /// empty (fresh default state) or already populated — no data is lost.
-    pub fn migrate_to_password(self, password: impl Into<String>) -> Result<Store> {
+    ///
+    /// Takes `&self` (rather than consuming it) so that if this fails partway
+    /// (e.g. the write in `save` errors), the caller still holds a live,
+    /// still-valid `Store` instead of having already discarded it.
+    pub fn migrate_to_password(&self, password: impl Into<String>) -> Result<Store> {
         let state = self.load()?;
-        let migrated = Store::with_password(self.path, password);
+        let migrated = Store::with_password(self.path.clone(), password);
         migrated.save(&state)?;
         Ok(migrated)
     }
@@ -189,8 +203,34 @@ fn persisted_device_secret() -> Option<String> {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     let secret: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    fs::write(&path, &secret).ok()?;
-    Some(secret)
+
+    // Create exclusively (fails if the file already exists) so two processes
+    // racing on first launch can't each "win" with a different secret — the
+    // loser would otherwise derive a `MasterKey` from a secret that never
+    // makes it to disk, and fail to decrypt its own save on the next launch.
+    use std::io::Write;
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+    {
+        Ok(mut f) => {
+            f.write_all(secret.as_bytes()).ok()?;
+            Some(secret)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Another process created it first between our read and write —
+            // use what it actually persisted, not our discarded secret.
+            let existing = fs::read_to_string(&path).ok()?;
+            let t = existing.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }
+        Err(_) => None,
+    }
 }
 
 #[cfg(test)]
