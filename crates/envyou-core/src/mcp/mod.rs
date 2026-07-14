@@ -11,7 +11,10 @@
 pub mod audit;
 mod server;
 
-pub use audit::{AuditEvent, AuditOutcome, AuditSink, AuditTool};
+pub use audit::{
+    clear_audit_log, read_audit_jsonl, AuditEvent, AuditOutcome, AuditRecord, AuditSink, AuditTool,
+    FileAuditSink,
+};
 pub use server::{
     serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest, EnvStore,
     McpPolicy, McpServer,

@@ -1379,6 +1379,46 @@ mod tests {
     }
 
     #[test]
+    fn response_echoes_request_id_for_number_and_string() {
+        // JSON-RPC ids come in different types; the response must echo the exact
+        // id so a client can match a response to its request.
+        let s = server(ApprovalOutcome::approved_all([]));
+        let r = call(&s, r#"{"jsonrpc":"2.0","id":42,"method":"ping"}"#);
+        assert_eq!(r["id"], 42);
+        let r = call(&s, r#"{"jsonrpc":"2.0","id":"abc-123","method":"ping"}"#);
+        assert_eq!(r["id"], "abc-123");
+        // Errors must echo the id too.
+        let r = call(&s, r#"{"jsonrpc":"2.0","id":7,"method":"nope"}"#);
+        assert_eq!(r["id"], 7);
+    }
+
+    #[test]
+    fn interleaved_calls_keep_ids_matched_and_ordered() {
+        // Simulate several requests arriving back-to-back on the stream and
+        // assert each response carries its own id, in order — the property that
+        // keeps concurrent-looking calls from getting their answers crossed.
+        let s = server(ApprovalOutcome::approved_all(["DATABASE_URL".into()]));
+        let input = concat!(
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","id":"two","method":"ping"}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_env_variables","arguments":{"projectId":"p1","names":["DATABASE_URL"]}}}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_projects"}}"#,
+            "\n"
+        );
+        let mut out = Vec::new();
+        serve_stdio(&s, std::io::Cursor::new(input), &mut out).unwrap();
+        let ids: Vec<Value> = String::from_utf8(out)
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str::<Value>(l).unwrap()["id"].clone())
+            .collect();
+        assert_eq!(ids, vec![json!(1), json!("two"), json!(3), json!(4)]);
+    }
+
+    #[test]
     fn serve_stdio_processes_multiple_lines() {
         let s = server(ApprovalOutcome::approved_all([]));
         let input = concat!(

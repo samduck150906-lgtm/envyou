@@ -19,6 +19,10 @@ pub const STATE_FILE: &str = "enc_state.json";
 /// key-derivation material (see [`machine_id`]).
 pub const DEVICE_SECRET_FILE: &str = "device_secret";
 
+/// Filename for the local MCP audit log (JSONL; value-free — see
+/// [`crate::mcp::FileAuditSink`]).
+pub const AUDIT_FILE: &str = "mcp_audit.jsonl";
+
 /// How a [`Store`] derives its encryption key.
 enum KeySource {
     /// Device-bound key (SHA-256 over machine material). No user password; the
@@ -432,6 +436,44 @@ mod tests {
         // usable restore point.
         let restored = Store::new(&bak, key).load().unwrap();
         assert_eq!(restored, state);
+    }
+
+    #[test]
+    fn concurrent_saves_never_corrupt_the_file() {
+        use std::thread;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(STATE_FILE);
+        let key = MasterKey::derive(b"machine");
+        // Seed a valid file so every writer is racing on an existing target.
+        Store::new(&path, key.clone())
+            .save(&EnvYouLocalState::default())
+            .unwrap();
+
+        // Many threads hammer the same path. The unique-temp-name + atomic-rename
+        // save must leave a whole, decryptable file no matter who wins each race
+        // (last-writer-wins is fine; a torn/half-written file is not).
+        let mut handles = Vec::new();
+        for i in 0..8 {
+            let path = path.clone();
+            let key = key.clone();
+            handles.push(thread::spawn(move || {
+                let store = Store::new(&path, key);
+                let mut st = EnvYouLocalState::default();
+                st.projects
+                    .push(ProjectItem::new(format!("p{i}"), "#008080", "now"));
+                for _ in 0..25 {
+                    store.save(&st).unwrap();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // The final file must still decrypt to a valid single-project state.
+        let loaded = Store::new(&path, key).load().unwrap();
+        assert_eq!(loaded.projects.len(), 1);
     }
 
     #[test]

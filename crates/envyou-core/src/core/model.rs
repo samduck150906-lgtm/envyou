@@ -115,6 +115,10 @@ pub struct McpAccess {
     /// request is auto-denied. Clamp with [`McpAccess::timeout_secs`].
     #[serde(default = "default_approval_timeout")]
     pub approval_timeout_secs: u32,
+    /// Whether to keep a local, value-free audit log of MCP activity. On by
+    /// default; the log records names/outcomes only and the user can clear it.
+    #[serde(default = "default_true")]
+    pub audit_log: bool,
 }
 
 fn default_true() -> bool {
@@ -135,6 +139,7 @@ impl Default for McpAccess {
             write_values: false,
             delete_values: false,
             approval_timeout_secs: default_approval_timeout(),
+            audit_log: true,
         }
     }
 }
@@ -394,6 +399,8 @@ mod tests {
         assert!(a.read_values);
         assert!(!a.write_values, "writes must be opt-in");
         assert!(!a.delete_values, "deletes must be opt-in");
+        // Value-free audit log is on by default.
+        assert!(a.audit_log);
     }
 
     /// A state file written before the `mcp` settings field existed must still

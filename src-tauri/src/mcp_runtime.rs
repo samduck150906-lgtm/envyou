@@ -23,10 +23,10 @@ use std::time::Duration;
 
 use envyou_core::core::license;
 use envyou_core::core::model::{EnvVariable, ProjectSummary};
-use envyou_core::core::storage::{machine_id, Store};
+use envyou_core::core::storage::{default_data_dir, machine_id, Store, AUDIT_FILE};
 use envyou_core::mcp::{
     serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest, EnvStore,
-    McpPolicy, McpServer,
+    FileAuditSink, McpPolicy, McpServer,
 };
 
 use crate::util::now_iso8601;
@@ -235,7 +235,19 @@ pub fn run_stdio() -> io::Result<()> {
     policy.enabled = true;
 
     let gate = NativeApprovalGate { timeout };
-    let server = McpServer::new(StoreAdapter { store }, gate, policy);
+    let mut server = McpServer::new(StoreAdapter { store }, gate, policy);
+
+    // Attach a local, value-free audit log if the user hasn't turned it off. The
+    // path is derived independently of the store, so this works even when the
+    // vault couldn't be read above.
+    if access.audit_log {
+        if let Ok(dir) = default_data_dir() {
+            server = server.with_audit_sink(Box::new(FileAuditSink::new(
+                dir.join(AUDIT_FILE),
+                now_iso8601,
+            )));
+        }
+    }
 
     let stdin = io::stdin();
     let stdout = io::stdout();
