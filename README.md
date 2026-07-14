@@ -253,6 +253,11 @@ Config paths are resolved per-OS (macOS: `~/Library/Application Support/Claude/�
 Windows: `%APPDATA%\Claude\…`). Linux has no official Claude Desktop config
 location, so Desktop linking is macOS/Windows only.
 
+Prefer a double-click install? envyou also ships as a Claude Desktop **extension
+bundle** (`.mcpb`) — open it in Claude Desktop instead of editing any config. See
+[`packaging/mcpb/`](packaging/mcpb/README.md) for the manifest, the
+`scripts/build-mcpb.sh` packer, and the release workflow.
+
 ### Claude Code
 
 Claude Code adds any stdio MCP server from the CLI — point it at the same binary
@@ -360,9 +365,13 @@ closed and reject all activations by design.
 - [ ] Approval **broker**: hand MCP approval requests to the running GUI over
   local IPC (robust cross-platform prompt when launched headless)
 - [ ] First-run **set-password / unlock** UI for the Argon2id vault
+- [x] `.mcpb` Desktop Extension: manifest, `scripts/build-mcpb.sh` packer, and a
+  `mcpb.yml` release workflow (signing/notarization wired, gated on secrets)
+- [x] AI Integrations settings UI (MCP master switch, write/delete toggles,
+  approval timeout, audit-log viewer) + Claude Code link / Claude Desktop unlink
 - [ ] Export/import (`.env`, JSON, shell), encrypted backups
-- [ ] Signed, notarized macOS/Windows release bundles + `.mcpb` Desktop Extension
-- [ ] Per-project MCP allow-list & "never share" variables; local audit log
+- [ ] Signed, notarized macOS/Windows release bundles (certificates pending)
+- [ ] Per-project MCP allow-list & "never share" variables
 
 ---
 

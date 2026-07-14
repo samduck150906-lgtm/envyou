@@ -1,0 +1,112 @@
+name: Build .mcpb
+
+# Build the envyou MCP server as a Claude Desktop extension (.mcpb) for macOS and
+# Windows. On a tag push the artifacts are attached to the GitHub Release.
+#
+# Code signing / notarization run only when the matching repository secrets are
+# set (see packaging/mcpb/README.md); without them the build still produces an
+# UNSIGNED .mcpb so the pipeline is exercised end-to-end.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mcpb:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            os: darwin
+            bin: target/release/envyou
+          - runner: windows-latest
+            os: win32
+            bin: target/release/envyou.exe
+    runs-on: ${{ matrix.runner }}
+    env:
+      # macOS signing / notarization (empty when the secret is unset → step skips)
+      APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      # Windows signing
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install mcpb CLI
+        # Preferred packer/validator; the build script falls back to zip if this
+        # is unavailable, so a failure here must not fail the job.
+        continue-on-error: true
+        run: npm install -g @anthropic-ai/mcpb
+
+      - name: Build envyou binary (release)
+        run: cargo build --release --bin envyou --manifest-path src-tauri/Cargo.toml
+
+      # ---- macOS: sign + notarize the binary BEFORE bundling ----
+      - name: macOS — import signing certificate
+        if: matrix.os == 'darwin' && env.APPLE_CERTIFICATE_P12_BASE64 != ''
+        run: |
+          echo "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > cert.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
+
+      - name: macOS — codesign + notarize binary
+        if: matrix.os == 'darwin' && env.APPLE_SIGNING_IDENTITY != ''
+        run: |
+          codesign --force --options runtime --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" "${{ matrix.bin }}"
+          ditto -c -k --keepParent "${{ matrix.bin }}" notarize.zip
+          xcrun notarytool submit notarize.zip \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+
+      # ---- Windows: sign the binary ----
+      - name: Windows — sign binary
+        if: matrix.os == 'win32' && env.WINDOWS_CERT_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /f cert.pfx /p $env:WINDOWS_CERT_PASSWORD `
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 "${{ matrix.bin }}"
+
+      - name: Pack .mcpb
+        shell: bash
+        run: bash scripts/build-mcpb.sh --binary "${{ matrix.bin }}" --os "${{ matrix.os }}" --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: envyou-${{ matrix.os }}-mcpb
+          path: |
+            dist/envyou-${{ matrix.os }}.mcpb
+            dist/envyou-${{ matrix.os }}.mcpb.sha256
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/envyou-${{ matrix.os }}.mcpb
+            dist/envyou-${{ matrix.os }}.mcpb.sha256
