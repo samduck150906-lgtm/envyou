@@ -4,8 +4,9 @@
 use std::sync::Mutex;
 
 use envyou_core::core::model::{EnvVariable, EnvYouLocalState, ProjectItem, Settings};
-use envyou_core::core::storage::{machine_id, Store};
-use envyou_core::core::{crypto, license, storage};
+use envyou_core::core::storage::{machine_id, Store, AUDIT_FILE};
+use envyou_core::core::{claude_config, crypto, license, storage};
+use envyou_core::mcp::{clear_audit_log, read_audit_jsonl, AuditRecord};
 use serde::Serialize;
 use tauri::State;
 
@@ -388,6 +389,152 @@ pub fn link_claude_desktop(state: State<AppState>) -> CmdResult<String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    // Timestamped backup of the existing config before we rewrite it, so a bad
+    // merge can always be undone by hand.
+    if existing.is_some() {
+        let bak = path.with_extension(format!("json.bak.{}", now_iso8601().replace(':', "-")));
+        let _ = std::fs::copy(&path, &bak);
+    }
     std::fs::write(&path, merged).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Remove the envyou entry from Claude Desktop's config, leaving every other
+/// server untouched. Not Pro-gated — users can always disconnect.
+#[tauri::command]
+pub fn unlink_claude_desktop() -> CmdResult<String> {
+    let path = claude_config::config_path().ok_or_else(|| {
+        "Claude Desktop config path is not available on this OS (macOS/Windows only).".to_string()
+    })?;
+    let existing = std::fs::read_to_string(&path).ok();
+    match claude_config::remove_server_str(existing.as_deref()).map_err(|e| e.to_string())? {
+        Some(updated) => {
+            let bak = path.with_extension(format!("json.bak.{}", now_iso8601().replace(':', "-")));
+            let _ = std::fs::copy(&path, &bak);
+            std::fs::write(&path, updated).map_err(|e| e.to_string())?;
+            Ok(format!("Removed envyou from {}", path.to_string_lossy()))
+        }
+        None => Ok("envyou was not in the Claude Desktop config (nothing to remove).".to_string()),
+    }
+}
+
+/// The exact, copy-pasteable `claude mcp add …` command for this install, so a
+/// user can register envyou with Claude Code by hand.
+#[tauri::command]
+pub fn claude_code_command() -> CmdResult<String> {
+    let exe = current_exe_path()?;
+    Ok(claude_config::claude_code_add_command(&exe))
+}
+
+/// Register envyou with Claude Code by invoking the `claude` CLI directly with an
+/// **argv array** (no shell, so an executable path with spaces / metacharacters
+/// can't be misinterpreted or injected). Pro-gated like Claude Desktop linking.
+#[tauri::command]
+pub fn link_claude_code(state: State<AppState>) -> CmdResult<String> {
+    if !load(&state)?.license.is_pro {
+        return Err("Claude Code (MCP) linking is a Pro feature. Upgrade to Pro.".into());
+    }
+    let exe = current_exe_path()?;
+    let args = claude_config::claude_code_add_args(&exe);
+    let output = std::process::Command::new("claude")
+        .args(&args)
+        .output()
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => "Couldn't find the `claude` CLI on your PATH. Install Claude Code, then retry — or copy the command and run it yourself.".to_string(),
+            _ => format!("Failed to run claude: {e}"),
+        })?;
+    if output.status.success() {
+        Ok(
+            "Registered envyou with Claude Code. Open Claude Code and run /mcp to confirm."
+                .to_string(),
+        )
+    } else {
+        // claude's own stderr; it never receives our secrets.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "`claude mcp add` failed: {}",
+            stderr.trim().lines().next().unwrap_or("unknown error")
+        ))
+    }
+}
+
+/// A snapshot of the MCP integration state for the Settings → AI Integrations UI.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpIntegrationStatus {
+    /// Claude Desktop config path for this OS, if any (None on Linux).
+    pub desktop_config_path: Option<String>,
+    pub desktop_config_exists: bool,
+    /// Whether an `envyou` entry is already present in that config.
+    pub envyou_in_desktop: bool,
+    /// Whether a `claude` executable is discoverable on PATH.
+    pub claude_cli_found: bool,
+}
+
+#[tauri::command]
+pub fn mcp_integration_status() -> CmdResult<McpIntegrationStatus> {
+    let path = claude_config::config_path();
+    let (exists, envyou_in) = match &path {
+        Some(p) => {
+            let raw = std::fs::read_to_string(p).ok();
+            let exists = raw.is_some();
+            let envyou_in = raw
+                .as_deref()
+                .and_then(|r| serde_json::from_str::<serde_json::Value>(r).ok())
+                .and_then(|v| {
+                    v.get("mcpServers")
+                        .and_then(|m| m.get(claude_config::SERVER_KEY))
+                        .cloned()
+                })
+                .is_some();
+            (exists, envyou_in)
+        }
+        None => (false, false),
+    };
+    Ok(McpIntegrationStatus {
+        desktop_config_path: path.map(|p| p.to_string_lossy().to_string()),
+        desktop_config_exists: exists,
+        envyou_in_desktop: envyou_in,
+        claude_cli_found: claude_on_path(),
+    })
+}
+
+/// Read the local, value-free MCP audit log (newest last). Not gated on the
+/// vault lock — the log contains no secret values, only names/outcomes.
+#[tauri::command]
+pub fn mcp_get_audit_log() -> CmdResult<Vec<AuditRecord>> {
+    read_audit_jsonl(&audit_file_path()?).map_err(|e| e.to_string())
+}
+
+/// Clear the entire local audit log (the user's "delete all").
+#[tauri::command]
+pub fn mcp_clear_audit_log() -> CmdResult<()> {
+    clear_audit_log(&audit_file_path()?).map_err(|e| e.to_string())
+}
+
+fn audit_file_path() -> CmdResult<std::path::PathBuf> {
+    Ok(storage::default_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(AUDIT_FILE))
+}
+
+fn current_exe_path() -> CmdResult<String> {
+    Ok(std::env::current_exe()
+        .map_err(|e| format!("could not resolve current executable: {e}"))?
+        .to_string_lossy()
+        .to_string())
+}
+
+/// Best-effort check for a `claude` executable on PATH (no subprocess spawned).
+/// On Windows the CLI is commonly a `.cmd`/`.exe` shim, so we check those too.
+fn claude_on_path() -> bool {
+    let Some(paths) = std::env::var_os("PATH") else {
+        return false;
+    };
+    let names: &[&str] = if cfg!(windows) {
+        &["claude.exe", "claude.cmd", "claude.bat", "claude"]
+    } else {
+        &["claude"]
+    };
+    std::env::split_paths(&paths).any(|dir| names.iter().any(|n| dir.join(n).is_file()))
 }

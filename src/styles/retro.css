@@ -450,3 +450,18 @@ button.btn:disabled {
   border-bottom: 2px solid var(--dark-gray);
   background-color: var(--gray);
 }
+
+/* ---- MCP audit log viewer ---- */
+.audit-row {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 2px;
+  border-bottom: 1px solid var(--dark-gray);
+  font-size: 11px;
+}
+.audit-when { color: var(--dark-gray); white-space: nowrap; }
+.audit-tool { font-weight: bold; }
+.audit-out { text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+.audit-meta { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

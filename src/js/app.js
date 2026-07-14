@@ -904,7 +904,47 @@
     const mask = el("input", { type: "checkbox" });
     mask.checked = s.maskSensitiveData;
     const claudeMsg = el("p", { class: "hint" });
+    const ccMsg = el("p", { class: "hint" });
     const saveBtn = el("button", { class: "btn primary", text: "Save" });
+
+    // ---- AI Integrations (MCP) inputs --------------------------------------
+    // Defensive merge so a state written before these fields existed still binds.
+    const mcp = Object.assign(
+      {
+        enabled: false,
+        listProjects: true,
+        listVariableNames: true,
+        readValues: true,
+        writeValues: false,
+        deleteValues: false,
+        approvalTimeoutSecs: 60,
+        auditLog: true,
+      },
+      s.mcp || {}
+    );
+    const mkCheck = (checked) => {
+      const c = el("input", { type: "checkbox" });
+      c.checked = !!checked;
+      return c;
+    };
+    const mcpEnabled = mkCheck(mcp.enabled);
+    const mcpRead = mkCheck(mcp.readValues);
+    const mcpWrite = mkCheck(mcp.writeValues);
+    const mcpDelete = mkCheck(mcp.deleteValues);
+    const mcpAudit = mkCheck(mcp.auditLog);
+    const mcpTimeout = el("input", {
+      type: "number",
+      min: "10",
+      max: "600",
+      value: String(mcp.approvalTimeoutSecs),
+      style: "width:90px",
+    });
+
+    const clampInt = (v, lo, hi, dflt) => {
+      const n = parseInt(v, 10);
+      if (Number.isNaN(n)) return dflt;
+      return Math.min(hi, Math.max(lo, n));
+    };
 
     const save = async () => {
       if (saveBtn.disabled) return;
@@ -913,6 +953,17 @@
         globalHotkey: hotkey.value.trim() || "Ctrl+Shift+E",
         alwaysOnTop: aot.checked,
         maskSensitiveData: mask.checked,
+        // Preserve every mcp field (incl. listProjects / listVariableNames and
+        // anything a newer build added) and apply the toggles the UI exposes.
+        // Without this, saving settings would reset MCP access to defaults.
+        mcp: Object.assign({}, mcp, {
+          enabled: mcpEnabled.checked,
+          readValues: mcpRead.checked,
+          writeValues: mcpWrite.checked,
+          deleteValues: mcpDelete.checked,
+          auditLog: mcpAudit.checked,
+          approvalTimeoutSecs: clampInt(mcpTimeout.value, 10, 600, 60),
+        }),
       };
       const ok = await run(window.api.saveSettings(newSettings), "Settings saved");
       if (ok) {
@@ -928,10 +979,13 @@
     };
     saveBtn.addEventListener("click", save);
 
+    const checkboxRow = (input, label) =>
+      el("label", { class: "checkbox-row" }, [input, document.createTextNode(" " + label)]);
+
     openModal("Settings", [
       el("div", { class: "field" }, [el("label", { text: "Global hotkey" }), hotkey]),
-      el("label", { class: "checkbox-row" }, [aot, document.createTextNode(" Always on top")]),
-      el("label", { class: "checkbox-row" }, [mask, document.createTextNode(" Mask sensitive values")]),
+      checkboxRow(aot, "Always on top"),
+      checkboxRow(mask, "Mask sensitive values"),
       el("hr"),
       el("div", { class: "field" }, [
         el("label", { text: "Encryption" }),
@@ -943,30 +997,198 @@
         el("p", { class: "hint", text: "Add an Argon2id master password on top of device encryption." }),
       ]),
       el("hr"),
+
+      // ---- AI Integrations (MCP) --------------------------------------------
       el("div", { class: "field" }, [
-        el("label", {}, ["Claude Desktop (MCP)", pro ? null : proBadge()]),
-        el("p", { class: "hint", text: "Let Claude read & write these variables — but only when you approve each request. One click adds envyou to claude_desktop_config.json (your other MCP servers are kept)." }),
-        el("button", {
-          class: "btn",
-          text: pro ? "Link with Claude Desktop »" : "🔒 Link with Claude Desktop",
-          onclick: pro
-            ? async () => {
-                try {
-                  const where = await window.api.linkClaudeDesktop();
-                  claudeMsg.textContent = "✔ Added to " + where + " — restart Claude Desktop, then ask it to \"list my envyou projects\".";
-                } catch (e) {
-                  claudeMsg.textContent = "✕ " + e;
-                }
-              }
-            : () => proLockedModal("locked_mcp"),
+        el("label", { text: "AI Integrations (MCP)" }),
+        checkboxRow(mcpEnabled, "Enable MCP access for Claude"),
+        checkboxRow(mcpRead, "Allow reading values (with per-request approval)"),
+        checkboxRow(mcpWrite, "Allow AI to create / update values"),
+        checkboxRow(mcpDelete, "Allow AI to delete values"),
+        el("div", { class: "field", style: "margin-top:6px" }, [
+          el("label", { text: "Approval timeout (seconds)" }),
+          mcpTimeout,
+        ]),
+        checkboxRow(mcpAudit, "Keep a local audit log (names & outcomes, never values)"),
+        el("div", { class: "modal-actions", style: "margin:4px 0" }, [
+          el("button", { class: "btn", text: "View audit log »", onclick: () => auditLogModal() }),
+        ]),
+        el("p", {
+          class: "hint",
+          text:
+            "Stored locally & encrypted. Reading a value or writing one asks for your approval each time; a value you approve is sent to your AI provider (e.g. Anthropic) to answer your request. Writes/deletes are off unless you turn them on.",
         }),
+      ]),
+      el("hr"),
+
+      // ---- Claude Desktop ----------------------------------------------------
+      el("div", { class: "field" }, [
+        el("label", {}, ["Claude Desktop", pro ? null : proBadge()]),
+        el("p", { class: "hint", text: "One click adds envyou to claude_desktop_config.json (your other MCP servers are kept). macOS / Windows only." }),
+        el("div", { class: "modal-actions", style: "margin:4px 0;justify-content:flex-start;gap:6px" }, [
+          el("button", {
+            class: "btn",
+            text: pro ? "Link »" : "🔒 Link",
+            onclick: pro
+              ? async () => {
+                  try {
+                    const where = await window.api.linkClaudeDesktop();
+                    claudeMsg.textContent = "✔ Added to " + where + " — restart Claude Desktop, then ask it to \"list my envyou projects\".";
+                  } catch (e) {
+                    claudeMsg.textContent = "✕ " + e;
+                  }
+                }
+              : () => proLockedModal("locked_mcp"),
+          }),
+          el("button", {
+            class: "btn",
+            text: "Unlink",
+            onclick: async () => {
+              try {
+                claudeMsg.textContent = await window.api.unlinkClaudeDesktop();
+              } catch (e) {
+                claudeMsg.textContent = "✕ " + e;
+              }
+            },
+          }),
+        ]),
         claudeMsg,
       ]),
+      el("hr"),
+
+      // ---- Claude Code -------------------------------------------------------
+      el("div", { class: "field" }, [
+        el("label", {}, ["Claude Code", pro ? null : proBadge()]),
+        el("p", { class: "hint", text: "Register envyou with the Claude Code CLI. Copy the command, or link automatically." }),
+        el("div", { class: "modal-actions", style: "margin:4px 0;justify-content:flex-start;gap:6px" }, [
+          el("button", {
+            class: "btn",
+            text: "Copy command",
+            onclick: async () => {
+              try {
+                const cmd = await window.api.claudeCodeCommand();
+                await copyText(cmd);
+                ccMsg.textContent = "✔ Copied: " + cmd;
+              } catch (e) {
+                ccMsg.textContent = "✕ " + e;
+              }
+            },
+          }),
+          el("button", {
+            class: "btn",
+            text: pro ? "Link automatically »" : "🔒 Link automatically",
+            onclick: pro
+              ? async () => {
+                  try {
+                    ccMsg.textContent = await window.api.linkClaudeCode();
+                  } catch (e) {
+                    ccMsg.textContent = "✕ " + e;
+                  }
+                }
+              : () => proLockedModal("locked_mcp"),
+          }),
+        ]),
+        ccMsg,
+      ]),
+
       el("div", { class: "modal-actions" }, [
         el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
         saveBtn,
       ]),
     ]);
+  }
+
+  // Best-effort clipboard copy for public command strings (never secrets).
+  async function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    // Fallback for environments without the async clipboard API.
+    const ta = el("textarea", { style: "position:fixed;opacity:0" });
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.body.removeChild(ta);
+    }
+  }
+
+  // ---- MCP audit log viewer --------------------------------------------------
+  function auditLogModal() {
+    const body = el("div", { style: "max-height:280px;overflow:auto" });
+    const info = el("p", { class: "hint", text: "Loading…" });
+    const clearBtn = el("button", { class: "btn", text: "Clear log" });
+
+    const outcomeText = {
+      approved: "approved",
+      partially_approved: "partial",
+      denied: "denied",
+      timeout: "timed out",
+      error: "error",
+      completed: "done",
+      failed: "failed",
+    };
+    const toolText = {
+      read_values: "read",
+      create_value: "create",
+      update_value: "update",
+      delete_value: "delete",
+    };
+
+    const load = async () => {
+      body.innerHTML = "";
+      let records;
+      try {
+        records = await window.api.mcpGetAuditLog();
+      } catch (e) {
+        info.textContent = "Couldn't load the audit log: " + e;
+        return;
+      }
+      if (!records.length) {
+        info.textContent = "No MCP activity recorded yet.";
+        return;
+      }
+      info.textContent = records.length + " event(s) — names & outcomes only, never values.";
+      // Newest first.
+      records
+        .slice()
+        .reverse()
+        .forEach((r) => {
+          const names = (r.variableNames || []).join(", ");
+          body.appendChild(
+            el("div", { class: "audit-row" }, [
+              el("span", { class: "audit-when", text: r.at || "" }),
+              el("span", { class: "audit-tool", text: toolText[r.tool] || r.tool }),
+              el("span", { class: "audit-out", text: outcomeText[r.outcome] || r.outcome }),
+              el("span", { class: "audit-meta", text: (r.client || "?") + " · " + names }),
+            ])
+          );
+        });
+    };
+
+    clearBtn.addEventListener("click", async () => {
+      // Not via run(): mcpClearAuditLog resolves void, and run() would assign
+      // that to state.data. Call it directly and re-render just the viewer.
+      try {
+        await window.api.mcpClearAuditLog();
+        status("Audit log cleared");
+        load();
+      } catch (e) {
+        info.textContent = "Couldn't clear the audit log: " + e;
+      }
+    });
+
+    openModal("MCP audit log", [
+      info,
+      body,
+      el("div", { class: "modal-actions" }, [
+        clearBtn,
+        el("button", { class: "btn", text: "Close", onclick: closeModal }),
+      ]),
+    ]);
+    load();
   }
 
   // ---- Master password: unlock gate & setup --------------------------------
