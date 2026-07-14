@@ -9,12 +9,14 @@
 //! (spec §2.2).
 
 pub mod audit;
+pub mod sensitivity;
 mod server;
 
 pub use audit::{
     clear_audit_log, read_audit_jsonl, AuditEvent, AuditOutcome, AuditRecord, AuditSink, AuditTool,
     FileAuditSink,
 };
+pub use sensitivity::is_sensitive_name;
 pub use server::{
     serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest, EnvStore,
     McpPolicy, McpServer,

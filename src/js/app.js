@@ -919,6 +919,7 @@
         deleteValues: false,
         approvalTimeoutSecs: 60,
         auditLog: true,
+        neverShare: [],
       },
       s.mcp || {}
     );
@@ -939,11 +940,31 @@
       value: String(mcp.approvalTimeoutSecs),
       style: "width:90px",
     });
+    const mcpNeverShare = el("textarea", {
+      rows: "2",
+      placeholder: "e.g. STRIPE_SECRET, AWS_SECRET_ACCESS_KEY",
+      style: "width:100%;font-family:inherit;font-size:12px",
+    });
+    mcpNeverShare.value = (mcp.neverShare || []).join(", ");
 
     const clampInt = (v, lo, hi, dflt) => {
       const n = parseInt(v, 10);
       if (Number.isNaN(n)) return dflt;
       return Math.min(hi, Math.max(lo, n));
+    };
+    // Parse the never-share textarea: split on commas/whitespace, dedupe, drop
+    // empties. These names can never be read by an AI, even if approved.
+    const parseNeverShare = (text) => {
+      const seen = new Set();
+      const out = [];
+      (text || "").split(/[\s,]+/).forEach((n) => {
+        const t = n.trim();
+        if (t && !seen.has(t.toLowerCase())) {
+          seen.add(t.toLowerCase());
+          out.push(t);
+        }
+      });
+      return out;
     };
 
     const save = async () => {
@@ -963,6 +984,7 @@
           deleteValues: mcpDelete.checked,
           auditLog: mcpAudit.checked,
           approvalTimeoutSecs: clampInt(mcpTimeout.value, 10, 600, 60),
+          neverShare: parseNeverShare(mcpNeverShare.value),
         }),
       };
       const ok = await run(window.api.saveSettings(newSettings), "Settings saved");
@@ -1010,6 +1032,10 @@
           mcpTimeout,
         ]),
         checkboxRow(mcpAudit, "Keep a local audit log (names & outcomes, never values)"),
+        el("div", { class: "field", style: "margin-top:6px" }, [
+          el("label", { text: "Never share these variables (blocked even if approved)" }),
+          mcpNeverShare,
+        ]),
         el("div", { class: "modal-actions", style: "margin:4px 0" }, [
           el("button", { class: "btn", text: "View audit log »", onclick: () => auditLogModal() }),
         ]),

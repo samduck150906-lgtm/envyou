@@ -38,6 +38,9 @@ pub struct McpPolicy {
     pub read_values: bool,
     pub write_values: bool,
     pub delete_values: bool,
+    /// Variable names that must never be shared with an AI. Enforced in the read
+    /// path *before* the approval gate, so these can't be approved at all.
+    pub never_share: Vec<String>,
 }
 
 impl Default for McpPolicy {
@@ -51,7 +54,15 @@ impl Default for McpPolicy {
             read_values: false,
             write_values: false,
             delete_values: false,
+            never_share: Vec::new(),
         }
+    }
+}
+
+impl McpPolicy {
+    /// Whether `key` is on the never-share list (case-insensitive exact match).
+    fn is_never_share(&self, key: &str) -> bool {
+        self.never_share.iter().any(|n| n.eq_ignore_ascii_case(key))
     }
 }
 
@@ -64,6 +75,7 @@ impl From<&McpAccess> for McpPolicy {
             read_values: a.read_values,
             write_values: a.write_values,
             delete_values: a.delete_values,
+            never_share: a.never_share.clone(),
         }
     }
 }
@@ -344,13 +356,34 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
         let project_name = self.project_display_name(&project_id);
         let reason = optional_str(args, "reason").or_else(|| optional_str(args, "purpose"));
 
-        // Human-in-the-loop, fail-closed.
+        // Never-share enforcement (spec §7): drop these BEFORE the gate so they
+        // are never offered for approval and can never be released — the user
+        // must remove a name from the never-share list to share it.
+        let (blocked, requestable): (Vec<String>, Vec<String>) = names
+            .iter()
+            .cloned()
+            .partition(|n| self.policy.is_never_share(n));
+        if requestable.is_empty() {
+            self.audit(AuditEvent::new(
+                self.client_name(),
+                AuditTool::ReadValues,
+                &project_id,
+                names.clone(),
+                AuditOutcome::Denied,
+            ));
+            return Ok(tool_text(
+                "All requested variables are on the never-share list and cannot be read by an AI.",
+                true,
+            ));
+        }
+
+        // Human-in-the-loop, fail-closed. Only the shareable names are offered.
         let outcome = self.gate.request(&ApprovalRequest {
             client: self.client_name(),
             project_id: project_id.clone(),
             project_name,
             action: ApprovalAction::ReadValues {
-                names: names.clone(),
+                names: requestable.clone(),
             },
             reason,
         });
@@ -367,13 +400,14 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
                 return Ok(denial_result(&outcome));
             }
         };
-        // Record the decision (approved / partially approved), never any value.
+        // Record the decision (approved / partially approved) against the names
+        // that were actually offered (i.e. not never-share-blocked). Never a value.
         self.audit(AuditEvent::new(
             self.client_name(),
             AuditTool::ReadValues,
             &project_id,
-            names.clone(),
-            if granted.len() < names.len() {
+            requestable.clone(),
+            if granted.len() < requestable.len() {
                 AuditOutcome::PartiallyApproved
             } else {
                 AuditOutcome::Approved
@@ -386,22 +420,24 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
             ));
         }
 
-        // Load the project's variables, then return only those that were both
-        // requested-and-granted and actually exist. Values for anything else
-        // never leave the store.
+        // Load the project's variables, then return only those that were offered
+        // (not never-share), granted, and actually exist. Values for anything
+        // else never leave the store.
         let vars = match self.store.read_env_variables(&project_id) {
             Ok(v) => v,
             Err(e) => return Ok(tool_text(&format!("Error: {e}"), true)),
         };
         let returned: Vec<&EnvVariable> = vars
             .iter()
-            .filter(|v| granted.iter().any(|g| g == &v.key) && names.iter().any(|n| n == &v.key))
+            .filter(|v| {
+                granted.iter().any(|g| g == &v.key) && requestable.iter().any(|n| n == &v.key)
+            })
             .collect();
         let returned_keys: Vec<&str> = returned.iter().map(|v| v.key.as_str()).collect();
-        // Names the caller asked for that were not returned (either the user did
-        // not approve them, or they do not exist). We do not distinguish the two
-        // to avoid turning the tool into an existence oracle.
-        let omitted: Vec<&String> = names
+        // Offered names that weren't returned (not approved, or don't exist). We
+        // don't distinguish those to avoid turning the tool into an existence
+        // oracle. Never-share names are reported separately as blocked.
+        let omitted: Vec<&String> = requestable
             .iter()
             .filter(|n| !returned_keys.contains(&n.as_str()))
             .collect();
@@ -411,6 +447,7 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
                 "projectId": project_id,
                 "variables": returned,
                 "omittedNames": omitted,
+                "blockedByNeverShare": blocked,
             }))
             .unwrap_or_else(|_| "{}".into()),
             false,
@@ -870,6 +907,7 @@ mod tests {
             read_values: true,
             write_values: true,
             delete_values: true,
+            never_share: Vec::new(),
         }
     }
 
@@ -1069,6 +1107,84 @@ mod tests {
             text.contains("DATABASE_URL"),
             "withheld name reported as omitted"
         );
+    }
+
+    #[test]
+    fn never_share_variable_is_not_offered_and_never_returned() {
+        // DATABASE_URL is on the never-share list; even an "approve everything"
+        // gate must not yield its value.
+        let policy = McpPolicy {
+            never_share: vec!["DATABASE_URL".into()],
+            ..open_policy()
+        };
+        let s = server_with(
+            ApprovalOutcome::approved_all(["DATABASE_URL".into(), "API_URL".into()]),
+            policy,
+        );
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"read_env_variables","arguments":{"projectId":"p1","names":["DATABASE_URL","API_URL"]}}}"#,
+        );
+        let text = result_text(&r);
+        // The never-share value is absent; the shareable one is returned.
+        assert!(
+            !text.contains("postgres://localhost/db"),
+            "never-share value leaked"
+        );
+        assert!(text.contains("api.example.com"));
+        assert!(text.contains("blockedByNeverShare"));
+        assert!(text.contains("DATABASE_URL"), "blocked name reported");
+        // The approval gate was only ever offered the shareable name.
+        let seen = s.gate.seen.borrow();
+        match &seen[0].action {
+            ApprovalAction::ReadValues { names } => {
+                assert_eq!(
+                    names,
+                    &vec!["API_URL".to_string()],
+                    "never-share not offered"
+                );
+            }
+            _ => panic!("expected a read approval"),
+        }
+    }
+
+    #[test]
+    fn read_of_only_never_share_names_is_refused_without_prompting() {
+        let policy = McpPolicy {
+            never_share: vec!["DATABASE_URL".into()],
+            ..open_policy()
+        };
+        let s = server_with(
+            ApprovalOutcome::approved_all(["DATABASE_URL".into()]),
+            policy,
+        );
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"read_env_variables","arguments":{"projectId":"p1","names":["DATABASE_URL"]}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert!(result_text(&r).to_lowercase().contains("never-share"));
+        assert!(!result_text(&r).contains("postgres"));
+        // No dialog was shown — the request never reached the gate.
+        assert!(s.gate.seen.borrow().is_empty());
+    }
+
+    #[test]
+    fn never_share_matches_case_insensitively() {
+        let policy = McpPolicy {
+            never_share: vec!["database_url".into()],
+            ..open_policy()
+        };
+        let s = server_with(
+            ApprovalOutcome::approved_all(["DATABASE_URL".into()]),
+            policy,
+        );
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"read_env_variables","arguments":{"projectId":"p1","names":["DATABASE_URL"]}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert!(!result_text(&r).contains("postgres"));
     }
 
     #[test]

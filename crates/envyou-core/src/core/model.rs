@@ -119,6 +119,13 @@ pub struct McpAccess {
     /// default; the log records names/outcomes only and the user can clear it.
     #[serde(default = "default_true")]
     pub audit_log: bool,
+    /// Variable names that must **never** be shared with an AI. The MCP server
+    /// refuses to read/return these even if the approval dialog is accepted —
+    /// they aren't offered for approval at all. To share one, the user has to
+    /// remove it from this list here first. Matched case-insensitively by exact
+    /// name.
+    #[serde(default)]
+    pub never_share: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -140,6 +147,7 @@ impl Default for McpAccess {
             delete_values: false,
             approval_timeout_secs: default_approval_timeout(),
             audit_log: true,
+            never_share: Vec::new(),
         }
     }
 }

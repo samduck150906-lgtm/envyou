@@ -25,8 +25,8 @@ use envyou_core::core::license;
 use envyou_core::core::model::{EnvVariable, ProjectSummary};
 use envyou_core::core::storage::{default_data_dir, machine_id, Store, AUDIT_FILE};
 use envyou_core::mcp::{
-    serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest, EnvStore,
-    FileAuditSink, McpPolicy, McpServer,
+    is_sensitive_name, serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest,
+    EnvStore, FileAuditSink, McpPolicy, McpServer,
 };
 
 use crate::util::now_iso8601;
@@ -165,9 +165,16 @@ fn build_dialog(req: &ApprovalRequest) -> (String, String, Vec<String>) {
     match &req.action {
         ApprovalAction::ReadValues { names } => {
             let count = names.len();
+            // Flag names that look like credentials so the dialog warns harder.
             let list = names
                 .iter()
-                .map(|n| format!("  • {n}"))
+                .map(|n| {
+                    if is_sensitive_name(n) {
+                        format!("  • {n}  ⚠ looks sensitive")
+                    } else {
+                        format!("  • {n}")
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join("\n");
             let body = format!(

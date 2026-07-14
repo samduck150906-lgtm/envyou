@@ -55,6 +55,7 @@
           deleteValues: false,
           approvalTimeoutSecs: 60,
           auditLog: true,
+          neverShare: [],
         },
       },
       projects: [],

@@ -5,10 +5,12 @@
 | Suite | Command | Covers |
 |---|---|---|
 | Core (Rust) | `cargo test -p envyou-core` | model, crypto, license verify, free-tier caps, code normalize |
+| MCP server (Rust) | `cargo test -p envyou-core mcp::` | protocol (initialize/ping/tools/errors, id echo), scoped named reads, wildcard/empty rejection, capability policy, fail-closed approval (deny/timeout/error), write/delete opt-in, never-share enforcement, sensitivity heuristic, value-free audit log + JSONL sink |
+| MCP config (Rust) | `cargo test -p envyou-core claude_config` | non-destructive merge + unlink, Claude Code argv (injection-safe), shell-quoting |
 | Core + issuer | `cargo test -p envyou-core --features issuer` | license issue↔verify round-trip, code generation, v2 cert fields |
 | Webhook (Rust) | `cargo test -p paddle-webhook` | Paddle signature verify (valid/tampered/stale/malformed), percent-encoding |
 | Dev tools (JS) | `node test/devtools.test.js` | .env/export/JSON parser, export formatters, secret generator, diff |
-| App smoke (headless) | Playwright against `src/index.html` + the `api.js` mock | free-tier Pro locks, Smart Import preview/import, Export formats, Secret Generator insert, Command Palette, Diff |
+| App smoke (headless) | Playwright against `src/index.html` + the `api.js` mock | free-tier Pro locks, Smart Import, Export, Secret Generator, Command Palette, Diff, **AI Integrations settings persistence (mcp toggles/timeout/never-share) + audit-log viewer + scrollable modal** |
 
 `node test/devtools.test.js` is dependency-free (no framework) and exits
 non-zero on the first failure — safe to add to CI.
@@ -91,3 +93,77 @@ non-zero on the first failure — safe to add to CI.
 ### Free/Pro (regression)
 - [ ] 3-project / 10-var caps still enforced; counters show `🔒` at the cap
 - [ ] Custom color picker and Claude MCP link remain Pro-locked with the upsell
+
+## MCP / AI Integrations (real device — macOS & Windows)
+
+> This is the flow the Linux CI **cannot** exercise (no webkit2gtk to build the
+> Tauri shell, no Claude clients). Run it on a real macOS and a real Windows box
+> before shipping the MCP feature. Never type or screenshot a real secret value.
+
+### Settings → AI Integrations
+- [ ] New install: MCP master switch is **OFF**; reads/lists on, **writes & deletes OFF**
+- [ ] Toggle enable + reads; set an approval timeout; **Save** → reopen Settings and
+  confirm the values persisted (not reset to defaults)
+- [ ] The long Settings dialog **scrolls** inside the small window — Save/Cancel are
+  always reachable
+- [ ] The data-flow note states approved values go to the AI provider (no "never leaves")
+
+### Claude Desktop (macOS / Windows only)
+- [ ] **Link** writes an `envyou` entry into `claude_desktop_config.json`; a
+  pre-existing unrelated server in that file is preserved, and a timestamped
+  `.bak` is created
+- [ ] Restart Claude Desktop → envyou tools appear
+- [ ] **Unlink** removes only the `envyou` entry (others untouched); a second Unlink
+  reports "nothing to remove"
+- [ ] Prefer the `.mcpb`? Installing `dist/envyou-<os>.mcpb` registers the server
+  without editing any config (see Packaging below)
+
+### Claude Code
+- [ ] **Copy command** yields `claude mcp add --transport stdio envyou -- "<abs path>" --mcp`
+  with the path quoted if it has spaces; pasting it registers envyou
+- [ ] **Link automatically** runs it in-app; if `claude` isn't on PATH the error says so
+- [ ] `claude mcp list` shows envyou; inside Claude Code `/mcp` lists its tools
+- [ ] Path with a space and a non-ASCII (e.g. Korean) username both work
+
+### Read approval (scoped)
+- [ ] Ask Claude: "read my-app's `API_URL`" → dialog names the client, project, and the
+  **exact** variable; **Allow** returns only that value
+- [ ] Ask for several vars → dialog lists all names + count; names that look like
+  credentials show a `⚠ looks sensitive` marker
+- [ ] Ask Claude to "read everything" → the tool refuses (must name variables; no
+  wildcard); no dialog for the refused shape
+- [ ] **Deny** → no value returned; nothing appears in the transcript
+
+### Write / delete (opt-in)
+- [ ] With writes **off**, Claude's write attempt is refused with no dialog and the
+  value is never echoed
+- [ ] Enable writes → a write pops a stronger dialog naming create-vs-update; the
+  value is not shown in the dialog; on Allow it saves
+- [ ] Enable deletes → a delete pops the strongest dialog; on Allow the variable is
+  removed **and** an encrypted `enc_state.json.bak.*` backup exists
+
+### Never-share
+- [ ] Add a variable name to **Never share**; ask Claude to read it → it is reported as
+  blocked and **no approval dialog appears** (can't be approved)
+- [ ] Requesting a never-share name alongside a normal one returns only the normal one
+
+### Audit log
+- [ ] After a few requests, **View audit log** shows client · tool · outcome · names
+  with timestamps and **no values**; "Clear" empties it
+- [ ] Inspect `<data dir>/mcp_audit.jsonl` — confirm it contains no variable values
+
+### Fail-closed / robustness
+- [ ] Approval that isn't answered within the timeout auto-denies (no hang, no leak)
+- [ ] Kill the approval dialog / envyou mid-request → the request is denied, not granted
+- [ ] `envyou --mcp` writes **only** JSON-RPC to stdout (logs go to stderr):
+  `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize"}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | envyou --mcp`
+  → every stdout line parses as JSON; response ids echo the request ids
+
+## Packaging (.mcpb) — see packaging/mcpb/README.md
+- [ ] `cargo build --release --bin envyou --manifest-path src-tauri/Cargo.toml` then
+  `scripts/build-mcpb.sh --binary <bin> --os <darwin|win32>` produces
+  `dist/envyou-<os>.mcpb` + `.sha256`
+- [ ] `npx @anthropic-ai/mcpb validate packaging/mcpb/manifest.json` passes
+- [ ] Double-clicking the `.mcpb` installs it into Claude Desktop and the tools work
+- [ ] With signing secrets set, the `mcpb.yml` workflow signs/notarizes; without them
+  it still produces an (unsigned) bundle and the job stays green
