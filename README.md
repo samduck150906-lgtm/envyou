@@ -17,12 +17,19 @@ Claude Desktop over MCP **only when you click "Allow"**. Built on **Tauri v2
 
 ## Why envyou
 
-- **Local-first, zero-cloud.** Everything lives in one encrypted file on your
-  machine. envyou makes no network calls.
-- **AI-native.** Claude Desktop can list your projects and read/write env
-  variables through envyou's MCP server — but every read and write is gated by
-  a physical OS approval dialog you have to click.
-- **Human-in-the-loop by default.** A secret is only released after you say yes.
+- **Local-first storage.** Your projects and secrets live in one encrypted file
+  on your machine. envyou never syncs them to a cloud — there is no account and
+  no envyou server that receives your secrets. (The app does make exactly one
+  kind of outbound call: contacting the license server to activate Pro. That
+  call carries your license code and email, never your stored secrets — see
+  [Where your data goes](#where-your-data-goes).)
+- **AI-native, with your approval.** Claude Desktop and Claude Code can list your
+  projects, list variable names, and read/write the variables you name through
+  envyou's MCP server — but reading a value or writing one is gated by a native
+  approval dialog you have to click, and writing is off until you opt in.
+- **Human-in-the-loop by default.** A value is only released after you say yes,
+  and a value you approve is then sent to your AI provider (e.g. Anthropic) to
+  answer your request. Approving is what sends it; nothing goes before that.
 - **Retro, credible UI.** A floating, always-on-top 80s-style window — hard
   pixel bevels, navy title bar, classic gray.
 
@@ -32,11 +39,12 @@ Claude Desktop over MCP **only when you click "Allow"**. Built on **Tauri v2
 
 | Area | What's implemented |
 | --- | --- |
-| **Zero-cloud storage** | All state lives in a single **AES-256-GCM** encrypted file (`enc_state.json`). Nothing is ever sent off-machine. |
+| **Zero-cloud storage** | All state lives in a single **AES-256-GCM** encrypted file (`enc_state.json`). envyou never syncs it to a cloud; the only things that leave your machine are a value you approve for an AI and your license code/email on Pro activation (see [Where your data goes](#where-your-data-goes)). |
 | **Key derivation** | Device-bound key by default; **optional Argon2id master-password** vault for password-protected encryption. |
 | **Data model** | Full `EnvYouLocalState` model (projects, variables, settings, license). |
-| **MCP server** | `envyou --mcp` runs a JSON-RPC 2.0 MCP server over STDIO exposing `list_projects`, `read_env_variables`, `write_env_variable`. |
-| **Human-in-the-loop** | `read`/`write` tool calls block on a native OS approval dialog before any secret is released. |
+| **MCP server** | `envyou --mcp` runs a JSON-RPC 2.0 MCP server over STDIO exposing `list_projects`, `list_variable_names`, `read_env_variables` (you name the exact variables), and `write_env_variable`. Works with **Claude Desktop** and **Claude Code**. |
+| **Policy gating** | A user-controlled [`McpAccess`](crates/envyou-core/src/core/model.rs) policy decides which tools an AI may attempt. Reads/lists default on; **writes and deletes are opt-in**. |
+| **Human-in-the-loop, fail-closed** | Reading a value or writing one blocks on a native approval dialog. Denial, a timeout, or an approval UI that can't be shown all mean *no data released* — there is no fail-open path. |
 | **Claude Desktop linking** | One click merges an `envyou` entry into `claude_desktop_config.json` **non-destructively** (existing servers preserved). |
 | **Retro UI** | Vanilla HTML/CSS/JS floating window with an always-on-top pin. |
 | **Developer tools** | Smart Import (paste `.env`/`export`/JSON/`process.env`), multi-format Export, project Diff, Command Palette, and a Secret Generator — see below. |
@@ -91,9 +99,39 @@ protect — stated plainly.
     memory. Use this if you want protection beyond machine-binding.
 
 ### AI access gate
-- The MCP `read_env_variables` and `write_env_variable` tools **block on a native
-  OS confirmation dialog** and only proceed if you approve. `list_projects`
-  returns names + counts only — never values.
+- **Policy first.** The [`McpAccess`](crates/envyou-core/src/core/model.rs)
+  settings decide which tools an AI may even attempt. Listing projects/variable
+  names and reading values default on; **`write_env_variable` is off until you
+  opt in**, and a disabled tool is refused before any dialog appears.
+- **Scoped reads.** `read_env_variables` requires you to name the exact
+  variables — there is no "read everything" default and wildcards are rejected.
+  The approval dialog shows every requested name and the count; you can approve a
+  subset, and only approved-and-named values are returned.
+- **Fail-closed approval.** `read_env_variables` and `write_env_variable` block
+  on a native confirmation dialog and only proceed on an explicit *yes*. A
+  denial, a timeout (default 60s, configurable), or an approval UI that can't be
+  shown are all treated identically: nothing is released.
+- **Names only where possible.** `list_projects` returns names + counts, and
+  `list_variable_names` returns variable names + whether each has a value —
+  never the values themselves. Both can be disabled in settings.
+- **What the AI never sees in errors.** Secret values are never placed in a tool
+  result's error text or in logs, and MCP diagnostics go to stderr so the STDIO
+  JSON-RPC stream stays clean.
+
+### Where your data goes
+envyou is local-first, but "local-first" is not the same as "nothing ever
+leaves your machine." Precisely:
+
+| Data | Leaves your machine? |
+| --- | --- |
+| Your projects, variable names, and **values at rest** | **No** — stored only in the encrypted `enc_state.json`; no cloud sync, no account. |
+| A variable **value you approve for Claude** | **Yes, when you approve it** — sent to your AI client (Claude Desktop / Claude Code) and processed by its provider (e.g. Anthropic). envyou has no control over that data once approved. |
+| **License activation** (Pro) | **Yes** — activating Pro sends your license *code* and *email* to the activation server. Your stored secrets are never part of this. |
+
+So the honest one-liner is: **stored locally and encrypted; the only secret
+values that leave are the ones you explicitly approve for an AI, and those go to
+that AI's provider.** Share API keys, passwords, and tokens with an AI only when
+you actually need to.
 
 ### License verification
 - Pro is unlocked by an **Ed25519-signed license token** verified fully offline
@@ -187,7 +225,12 @@ data unencrypted in `localStorage` — it is a UI demo, not the real vault.
 
 ---
 
-## Claude Desktop / MCP integration
+## Claude Desktop / Claude Code / MCP integration
+
+`envyou --mcp` is a standard JSON-RPC 2.0 MCP server over STDIO, so it works with
+any MCP client. The two first-class ones:
+
+### Claude Desktop
 
 1. In **Settings → Link with Claude Desktop**, envyou writes its server entry
    into `claude_desktop_config.json`, merging non-destructively:
@@ -205,13 +248,43 @@ data unencrypted in `localStorage` — it is a UI demo, not the real vault.
    ```
 
 2. Claude Desktop then launches `envyou --mcp`, which speaks MCP over STDIO.
-3. When Claude calls `read_env_variables` / `write_env_variable`, envyou pops a
-   **physical approval dialog** — secrets are only released after you click
-   **Yes**.
 
 Config paths are resolved per-OS (macOS: `~/Library/Application Support/Claude/…`,
 Windows: `%APPDATA%\Claude\…`). Linux has no official Claude Desktop config
-location, so linking is macOS/Windows only.
+location, so Desktop linking is macOS/Windows only.
+
+### Claude Code
+
+Claude Code adds any stdio MCP server from the CLI — point it at the same binary
+with the `--mcp` flag (use the absolute path; quote it if it contains spaces):
+
+```bash
+claude mcp add --transport stdio envyou -- "/absolute/path/to/envyou" --mcp
+claude mcp list          # verify it registered
+# then inside Claude Code:  /mcp   → confirm the envyou tools are listed
+```
+
+### The tools, and what happens on a call
+
+| Tool | Approval | Returns |
+| --- | --- | --- |
+| `list_projects` | none | project ids, names, variable counts — **no values** |
+| `list_variable_names` | none | variable names + whether each has a value — **no values** |
+| `read_env_variables` | **yes, per call** | only the **named** variables you approve, with values |
+| `write_env_variable` | **yes, per call** (and off until you opt in) | confirmation of the changed key — **never the value** |
+
+When Claude calls `read_env_variables` or `write_env_variable`, envyou pops a
+**native approval dialog** naming the client, the project, and the exact
+variables. A value is released only after you approve; a denial, a timeout, or a
+dialog that can't be shown all deny the request. See
+[Where your data goes](#where-your-data-goes) for what a value you approve does
+next.
+
+> **Note (this build):** the MCP *master on/off* switch and the write/delete
+> opt-in toggles live in the [`McpAccess`](crates/envyou-core/src/core/model.rs)
+> settings and are enforced by the server, but the Settings **UI** to flip them
+> is still being built. Until it ships, reads/lists are enabled and AI writes are
+> off by default.
 
 ---
 
@@ -279,10 +352,17 @@ closed and reject all activations by design.
 
 - [x] Production Ed25519 public key + Paddle issuance webhook + short-code
   activation (see `docs/LICENSE_SYSTEM.md`)
+- [x] MCP hardening: scoped named reads, `list_variable_names`, capability policy
+  (writes/deletes opt-in), fail-closed approval with timeout — all in
+  `envyou-core` and unit-tested
+- [ ] **Settings → AI Integrations** UI: MCP master switch, write/delete toggles,
+  approval timeout, and one-click Claude Code (`claude mcp add`) setup
+- [ ] Approval **broker**: hand MCP approval requests to the running GUI over
+  local IPC (robust cross-platform prompt when launched headless)
 - [ ] First-run **set-password / unlock** UI for the Argon2id vault
 - [ ] Export/import (`.env`, JSON, shell), encrypted backups
-- [ ] Signed, notarized macOS/Windows release bundles
-- [ ] Per-project MCP allow-list
+- [ ] Signed, notarized macOS/Windows release bundles + `.mcpb` Desktop Extension
+- [ ] Per-project MCP allow-list & "never share" variables; local audit log
 
 ---
 

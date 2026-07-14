@@ -520,7 +520,7 @@ footer.foot{
           "name": "Does envyou send my secrets to the cloud?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. envyou is local-first. All of your projects, variables, and settings are stored in a single AES-256-GCM encrypted file on your own machine. Nothing is ever sent off-device — there is no cloud sync, no account, and no server that receives your secrets."
+            "text": "No — envyou is local-first and never syncs your secrets anywhere. All of your projects, variables, and settings are stored in a single AES-256-GCM encrypted file on your own machine: no cloud sync, no account, no envyou server that receives your secrets. The one time a value leaves your machine is when you approve Claude reading it — then that specific value is sent to your AI provider (e.g. Anthropic) to answer your request, and never before."
           }
         },
         {
@@ -528,7 +528,7 @@ footer.foot{
           "name": "How does the Claude Desktop MCP integration work?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "envyou can run as a Model Context Protocol (MCP) server. One click writes an envyou entry into your claude_desktop_config.json, and Claude Desktop then launches 'envyou --mcp', which speaks JSON-RPC 2.0 MCP over STDIO and exposes list_projects, read_env_variables, and write_env_variable. Every read or write triggers a native approval dialog on your machine — secrets are only released after you click Yes."
+            "text": "envyou can run as a Model Context Protocol (MCP) server for both Claude Desktop (link it from Settings) and Claude Code (claude mcp add). Claude launches 'envyou --mcp', which speaks JSON-RPC 2.0 MCP over STDIO and exposes list_projects, list_variable_names, read_env_variables (you name the exact variables to read), and write_env_variable. Reading or writing a value triggers a native approval dialog on your machine — the value is only released after you approve, writing is off until you opt in, and if the dialog can't be shown or times out the request is denied. Values you approve are sent to your AI provider (e.g. Anthropic) to answer your request."
           }
         },
         {
@@ -671,8 +671,8 @@ footer.foot{
         </div>
         <div class="feat raised">
           <div class="icon">🔒</div>
-          <h3 data-i18n="feat2_t">Total privacy</h3>
-          <p data-i18n="feat2_p">API keys and DB passwords are never sent to any server. Everything is stored only on your machine, encrypted with AES-256-GCM in a single file.</p>
+          <h3 data-i18n="feat2_t">Local, encrypted storage</h3>
+          <p data-i18n="feat2_p">Your API keys and DB passwords live only on your machine — one AES-256-GCM encrypted file, no cloud sync. When you approve Claude reading a value, only that value is shared with your AI provider.</p>
           <span class="kbd">🚫 No Cloud Sync</span>
         </div>
         <div class="feat raised">
@@ -739,7 +739,7 @@ footer.foot{
               <div class="btns"><span class="mini-b" data-i18n="mcp_deny">Deny</span><span class="mini-b pri" data-i18n="mcp_allow">Allow</span></div>
             </div>
           </div>
-          <div class="cap" data-i18n="mcp_cap"><b>A human must approve</b> before AI sees a secret. Every read and write pops a local approval dialog — zero cloud leaks.</div>
+          <div class="cap" data-i18n="mcp_cap"><b>A human must approve</b> before AI sees a secret. Every read and write pops a local approval dialog — nothing is shared until you click Allow, and approved values go to your AI provider.</div>
         </div>
 
         <!-- Free -> Pro unlock (wide) -->
@@ -936,12 +936,12 @@ footer.foot{
 
         <details>
           <summary data-i18n="faq_q2">Does envyou send my secrets to the cloud?</summary>
-          <div class="a">No. envyou is <b>local-first</b>. All of your projects, variables, and settings live in a single AES-256-GCM encrypted file on your own machine. Nothing is ever sent off-device — there is no cloud sync, no account, and no server that receives your secrets.</div>
+          <div class="a">No — envyou is <b>local-first</b> and never syncs your secrets anywhere. All of your projects, variables, and settings live in a single AES-256-GCM encrypted file on your own machine: no cloud sync, no account, no envyou server that receives your secrets. The one time a value leaves your machine is when <b>you</b> approve Claude reading it — then that specific value is sent to your AI provider (e.g. Anthropic) to answer your request, and never before.</div>
         </details>
 
         <details>
           <summary data-i18n="faq_q3">How does the Claude Desktop MCP integration work?</summary>
-          <div class="a">envyou can run as a <b>Model Context Protocol (MCP)</b> server. One click writes an <code>envyou</code> entry into your <code>claude_desktop_config.json</code>, and Claude Desktop then launches <code>envyou --mcp</code>, which speaks JSON-RPC 2.0 MCP over STDIO and exposes <code>list_projects</code>, <code>read_env_variables</code>, and <code>write_env_variable</code>. Every read or write triggers a <b>native approval dialog</b> on your machine — secrets are only released after you click <b>Yes</b>.</div>
+          <div class="a">envyou can run as a <b>Model Context Protocol (MCP)</b> server. It works with <b>Claude Desktop</b> (link it from Settings) and <b>Claude Code</b> (<code>claude mcp add</code>). Claude launches <code>envyou --mcp</code>, which speaks JSON-RPC 2.0 MCP over STDIO and exposes <code>list_projects</code>, <code>list_variable_names</code>, <code>read_env_variables</code> (you name the exact variables), and <code>write_env_variable</code>. Reading a value or writing one triggers a <b>native approval dialog</b> on your machine — the value is only released after you approve, and writing is off until you opt in. If the dialog can't be shown or you don't answer in time, the request is denied.</div>
         </details>
 
         <details>
@@ -1225,7 +1225,7 @@ footer.foot{
     en: {
       feat_sub:"For developers tired of heavy, scattered workflows — we focused on the three things that matter.",
       feat1_t:"Ultra lightweight", feat1_p:"Built on Tauri (Rust), not Electron. A floating desktop app that uses only a few MB of memory and pops up instantly with a global hotkey.",
-      feat2_t:"Total privacy", feat2_p:"API keys and DB passwords are never sent to any server. Everything is stored only on your machine, encrypted with AES-256-GCM in a single file.",
+      feat2_t:"Local, encrypted storage", feat2_p:"Your API keys and DB passwords live only on your machine — one AES-256-GCM encrypted file, no cloud sync. When you approve Claude reading a value, only that value is shared with your AI provider.",
       feat3_t:"Claude MCP integration", feat3_p:"Connect to Claude Desktop over the Model Context Protocol. AI can read and write your variables directly — but every call pops a physical approval dialog you must accept.",
       trust_cloud:"Zero Cloud", trust_mcp:"Claude MCP Native", trust_nosub:"No Subscription",
       faq_q1:"Is envyou free?", faq_q2:"Does envyou send my secrets to the cloud?", faq_q3:"How does the Claude Desktop MCP integration work?", faq_q4:"How is envyou different from dotenv, 1Password, Doppler, or Infisical?", faq_q5:"What encryption does envyou use?", faq_q6:"Which platforms does envyou support?", faq_q7:"Does envyou require a subscription?",
@@ -1234,7 +1234,7 @@ footer.foot{
     ko: {
       feat_sub:"무겁고 산만한 워크플로우에 지친 개발자를 위해, 딱 필요한 세 가지에 집중했습니다.",
       feat1_t:"극한의 가벼움", feat1_p:"Electron이 아닌 Tauri(Rust) 기반. 수 MB 메모리만 쓰는 플로팅 데스크톱 앱이 전역 단축키로 즉시 떠오릅니다.",
-      feat2_t:"완벽한 프라이버시", feat2_p:"API 키·DB 패스워드는 어떤 서버로도 전송되지 않습니다. 단일 파일에 AES-256-GCM으로 암호화되어 오직 로컬에만 저장됩니다.",
+      feat2_t:"로컬 암호화 저장", feat2_p:"API 키·DB 패스워드는 오직 내 컴퓨터에만 — 단일 AES-256-GCM 암호화 파일로, 클라우드 동기화 없이 저장됩니다. Claude가 값을 요청해 승인하면, 그 값만 연결된 AI 서비스로 전달됩니다.",
       feat3_t:"Claude MCP 연동", feat3_p:"Model Context Protocol로 Claude Desktop과 연결. AI가 환경변수를 직접 읽고 쓰되, 매 호출마다 사용자 물리 승인 팝업이 뜹니다.",
       trust_cloud:"클라우드 없음", trust_mcp:"Claude MCP 네이티브", trust_nosub:"구독 없음",
       faq_q1:"envyou는 무료인가요?", faq_q2:"envyou가 내 시크릿을 클라우드로 보내나요?", faq_q3:"Claude Desktop MCP 연동은 어떻게 작동하나요?", faq_q4:"envyou는 dotenv·1Password·Doppler·Infisical과 어떻게 다른가요?", faq_q5:"envyou는 어떤 암호화를 쓰나요?", faq_q6:"envyou는 어떤 플랫폼을 지원하나요?", faq_q7:"envyou는 구독이 필요한가요?",
@@ -1306,7 +1306,7 @@ footer.foot{
       "mcp_body": "Claude wants to read <b>DATABASE_URL</b>.",
       "mcp_deny": "Deny",
       "mcp_allow": "Allow",
-      "mcp_cap": "<b>A human must approve</b> before AI sees a secret. Every read and write pops a local approval dialog — zero cloud leaks.",
+      "mcp_cap": "<b>A human must approve</b> before AI sees a secret. Every read and write pops a local approval dialog — nothing is shared until you click Allow, and approved values go to your AI provider.",
       "fp_projects": "Projects",
       "fp_vars": "Variables",
       "fp_colors": "Custom colors",

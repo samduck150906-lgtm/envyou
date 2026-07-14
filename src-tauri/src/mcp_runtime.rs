@@ -1,13 +1,32 @@
 //! `envyou --mcp` runtime: wires envyou-core's MCP server to the encrypted
 //! local store and a native approval dialog, then serves over STDIO.
+//!
+//! ## stdout discipline
+//! Claude frames MCP over STDIO, so **stdout carries JSON-RPC and nothing else**.
+//! Every diagnostic here goes to stderr (`eprintln!`), and secret values are
+//! never logged to either stream.
+//!
+//! ## Approval when the GUI isn't running (known limitation)
+//! Claude Desktop / Claude Code launch `envyou --mcp` as a headless child
+//! process. [`NativeApprovalGate`] pops an OS modal directly from that process
+//! with a timeout, failing closed if the user doesn't answer. That works on
+//! Linux/Windows; on macOS native modals want the main thread, so the robust
+//! production path is an *approval broker* that hands the request to the running
+//! envyou GUI over local IPC (spec §4.1 follow-up). Until that ships, the gate
+//! below is the interim mechanism — and because the core server treats
+//! [`ApprovalOutcome::Timeout`]/[`ApprovalOutcome::Error`] exactly like a denial,
+//! a modal that never appears can never leak a secret.
 
 use std::io::{self, BufReader};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use envyou_core::core::license;
 use envyou_core::core::model::{EnvVariable, ProjectSummary};
 use envyou_core::core::storage::{machine_id, Store};
 use envyou_core::mcp::{
-    serve_stdio, ApprovalDecision, ApprovalGate, ApprovalRequest, EnvStore, McpServer,
+    serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest, EnvStore,
+    McpPolicy, McpServer,
 };
 
 /// Adapter exposing the encrypted [`Store`] to the MCP server. Each call loads
@@ -63,38 +82,98 @@ impl EnvStore for StoreAdapter {
 }
 
 /// Native blocking confirmation dialog implementing the Human-in-the-Loop gate
-/// (spec §4.1). Even in headless `--mcp` mode this surfaces a physical OS modal
-/// the user must click before any secret leaves the machine.
-struct NativeApprovalGate;
+/// (spec §4.1), with a timeout so a request can never block the MCP stream
+/// forever. Any outcome other than an explicit "Yes" fails closed.
+struct NativeApprovalGate {
+    timeout: Duration,
+}
 
 impl ApprovalGate for NativeApprovalGate {
-    fn request(&self, req: &ApprovalRequest) -> ApprovalDecision {
-        let (title, body) = match req {
-            ApprovalRequest::Read { project_id } => (
-                "envyou — AI read request",
-                format!(
-                    "Claude is requesting to READ all environment variables\nfor project:\n\n  {project_id}\n\nAllow this?"
-                ),
-            ),
-            ApprovalRequest::Write { project_id, key } => (
-                "envyou — AI write request",
-                format!(
-                    "Claude is requesting to WRITE an environment variable:\n\n  {key}\n\ninto project:\n\n  {project_id}\n\nAllow this?"
-                ),
-            ),
-        };
+    fn request(&self, req: &ApprovalRequest) -> ApprovalOutcome {
+        let (title, body, granted) = build_dialog(req);
 
-        let confirmed = rfd::MessageDialog::new()
-            .set_level(rfd::MessageLevel::Warning)
-            .set_title(title)
-            .set_description(&body)
-            .set_buttons(rfd::MessageButtons::YesNo)
-            .show();
+        // Show the modal on a worker thread so we can enforce a timeout: no
+        // answer within `self.timeout` => Timeout (a denial). The dialog only
+        // ever receives names/keys — never a secret value — so nothing sensitive
+        // is placed on another thread or in any buffer.
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let confirmed = rfd::MessageDialog::new()
+                .set_level(rfd::MessageLevel::Warning)
+                .set_title(&title)
+                .set_description(&body)
+                .set_buttons(rfd::MessageButtons::YesNo)
+                .show();
+            // If the receiver already timed out and went away, this send fails
+            // harmlessly.
+            let _ = tx.send(matches!(confirmed, rfd::MessageDialogResult::Yes));
+        });
 
-        if matches!(confirmed, rfd::MessageDialogResult::Yes) {
-            ApprovalDecision::Approved
-        } else {
-            ApprovalDecision::Denied
+        match rx.recv_timeout(self.timeout) {
+            Ok(true) => ApprovalOutcome::Approved { granted },
+            Ok(false) => ApprovalOutcome::Denied,
+            Err(mpsc::RecvTimeoutError::Timeout) => ApprovalOutcome::Timeout,
+            // The dialog thread panicked or the channel closed before answering:
+            // could not obtain consent, so deny.
+            Err(mpsc::RecvTimeoutError::Disconnected) => ApprovalOutcome::Error,
+        }
+    }
+}
+
+/// Build the (title, body, granted-names) tuple for an approval request.
+///
+/// The body spells out who is asking, exactly what they'd receive, and — for
+/// reads — that approved values leave the machine for the AI provider. The
+/// native Yes/No modal can't offer per-item selection, so "Yes" grants the full
+/// requested set (already shown in the body); the richer subset UI is the GUI
+/// approval-broker follow-up. A secret value is never included.
+fn build_dialog(req: &ApprovalRequest) -> (String, String, Vec<String>) {
+    let client = req.client.as_str();
+    let project = if req.project_name.is_empty() {
+        req.project_id.as_str()
+    } else {
+        req.project_name.as_str()
+    };
+    let reason = req
+        .reason
+        .as_deref()
+        .map(|r| format!("\n\nReason given: {r}"))
+        .unwrap_or_default();
+
+    match &req.action {
+        ApprovalAction::ReadValues { names } => {
+            let count = names.len();
+            let list = names
+                .iter()
+                .map(|n| format!("  • {n}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let body = format!(
+                "{client} is requesting to READ the value of {count} variable(s)\n\
+                 in project \"{project}\":\n\n{list}{reason}\n\n\
+                 If you approve, these values are sent to {client} and may be \
+                 processed by its AI provider (e.g. Anthropic). Approve only what \
+                 you actually need. This approves a single request.",
+            );
+            (
+                "envyou — AI wants to read secrets".to_string(),
+                body,
+                names.clone(),
+            )
+        }
+        ApprovalAction::WriteValue { key, creating } => {
+            let verb = if *creating { "CREATE" } else { "UPDATE" };
+            let body = format!(
+                "{client} is requesting to {verb} an environment variable:\n\n  \
+                 • {key}\n\nin project \"{project}\".{reason}\n\n\
+                 The value is not shown here — open envyou to review it. \
+                 This approves a single change.",
+            );
+            (
+                "envyou — AI wants to change a secret".to_string(),
+                body,
+                vec![key.clone()],
+            )
         }
     }
 }
@@ -102,7 +181,26 @@ impl ApprovalGate for NativeApprovalGate {
 /// Build the server and pump STDIO until EOF.
 pub fn run_stdio() -> io::Result<()> {
     let store = Store::open_default().map_err(|e| io::Error::other(e.to_string()))?;
-    let server = McpServer::new(StoreAdapter { store }, NativeApprovalGate);
+
+    // Derive the capability policy + approval timeout from the user's saved
+    // settings. If the vault can't be read here (e.g. it's password-protected
+    // and this headless process has no password), fall back to the safe default
+    // (reads on, writes/deletes off) — never to a more permissive state.
+    let access = store.load().map(|s| s.settings.mcp).unwrap_or_default();
+    let timeout = Duration::from_secs(access.timeout_secs() as u64);
+
+    let mut policy = McpPolicy::from(&access);
+    // TRANSITIONAL: the GUI master on/off switch (Settings → AI Integrations) is
+    // not built yet. Hard-gating on `access.enabled` here would disable the
+    // already-working read integration with no way to turn it back on, so we
+    // treat the server as enabled and rely on the per-capability flags (writes
+    // and deletes remain opt-in) plus the fail-closed approval dialog. Once the
+    // settings screen can toggle `enabled`, delete this line so the user's
+    // explicit choice is honored.
+    policy.enabled = true;
+
+    let gate = NativeApprovalGate { timeout };
+    let server = McpServer::new(StoreAdapter { store }, gate, policy);
 
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -189,5 +287,45 @@ mod tests {
             .write_env_variable("no-such-project", "K", "V")
             .expect_err("writing to an unknown project must fail");
         assert!(err.contains("not found"), "expected not-found, got: {err}");
+    }
+
+    /// The read-values dialog body must name the variables and warn about the AI
+    /// transfer, but must never contain a secret value (build_dialog is given
+    /// only names, so this is a guard against future regressions).
+    #[test]
+    fn read_dialog_lists_names_and_warns_without_values() {
+        let req = ApprovalRequest {
+            client: "Claude Desktop".into(),
+            project_id: "p1".into(),
+            project_name: "api".into(),
+            action: ApprovalAction::ReadValues {
+                names: vec!["DATABASE_URL".into(), "API_KEY".into()],
+            },
+            reason: Some("deploying".into()),
+        };
+        let (title, body, granted) = build_dialog(&req);
+        assert!(title.contains("read"));
+        assert!(body.contains("DATABASE_URL") && body.contains("API_KEY"));
+        assert!(body.contains("Claude Desktop"));
+        assert!(body.to_lowercase().contains("provider"));
+        assert_eq!(granted, vec!["DATABASE_URL", "API_KEY"]);
+    }
+
+    #[test]
+    fn write_dialog_shows_key_but_not_value() {
+        let req = ApprovalRequest {
+            client: "Claude Code".into(),
+            project_id: "p1".into(),
+            project_name: "api".into(),
+            action: ApprovalAction::WriteValue {
+                key: "NODE_ENV".into(),
+                creating: false,
+            },
+            reason: None,
+        };
+        let (_t, body, granted) = build_dialog(&req);
+        assert!(body.contains("NODE_ENV"));
+        assert!(body.contains("UPDATE"));
+        assert_eq!(granted, vec!["NODE_ENV"]);
     }
 }
