@@ -372,16 +372,27 @@ button.btn:disabled {
 .modal {
   width: 300px;
   max-width: 92vw;
+  /* Cap the height and let the content scroll so a long dialog (e.g. Settings)
+     never pushes its action buttons off a small always-on-top window. */
+  max-height: 90vh;
   height: auto;
+  display: flex;
+  flex-direction: column;
 }
 .modal .titlebar {
   cursor: default;
+  flex: 0 0 auto;
 }
 .modal-content {
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* min-height:0 lets this flex child shrink below its content size so the
+     overflow actually scrolls instead of expanding the modal past the cap. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .modal-content label {
   font-size: 11px;
@@ -450,3 +461,18 @@ button.btn:disabled {
   border-bottom: 2px solid var(--dark-gray);
   background-color: var(--gray);
 }
+
+/* ---- MCP audit log viewer ---- */
+.audit-row {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 2px;
+  border-bottom: 1px solid var(--dark-gray);
+  font-size: 11px;
+}
+.audit-when { color: var(--dark-gray); white-space: nowrap; }
+.audit-tool { font-weight: bold; }
+.audit-out { text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+.audit-meta { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

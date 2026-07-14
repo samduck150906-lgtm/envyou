@@ -59,6 +59,12 @@ pub struct Settings {
     pub always_on_top: bool,
     #[serde(rename = "maskSensitiveData")]
     pub mask_sensitive_data: bool,
+    /// Which capabilities the MCP server (Claude Desktop / Claude Code) is
+    /// allowed to use. Defaulted via serde so a pre-existing `enc_state.json`
+    /// written before this field existed still deserializes — it simply loads
+    /// the safe [`McpAccess::default`] (reads on, writes/deletes off).
+    #[serde(default)]
+    pub mcp: McpAccess,
 }
 
 impl Default for Settings {
@@ -67,7 +73,91 @@ impl Default for Settings {
             global_hotkey: "Ctrl+Shift+E".to_string(),
             always_on_top: true,
             mask_sensitive_data: true,
+            mcp: McpAccess::default(),
         }
+    }
+}
+
+/// User-controlled gate on what an MCP client may do. Mutating capabilities are
+/// **opt-in** (default `false`) so an AI can never create, change, or remove a
+/// secret until the user has deliberately turned that on — the "human decides
+/// what the AI can even attempt" layer that sits *above* the per-call approval
+/// dialog.
+///
+/// The `enabled` master switch defaults to `false`: MCP access is off until the
+/// user links a client and turns it on. Every field is `#[serde(default)]` so
+/// partially-written or older settings round-trip to the safe value rather than
+/// silently enabling something.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAccess {
+    /// Master switch. When `false`, the MCP server rejects every tool call
+    /// regardless of the more specific flags below.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Allow `list_projects` (names + counts only, never values).
+    #[serde(default = "default_true")]
+    pub list_projects: bool,
+    /// Allow `list_variable_names` (variable names only, never values).
+    #[serde(default = "default_true")]
+    pub list_variable_names: bool,
+    /// Allow `read_env_variables` (returns approved values — the AI sees them).
+    #[serde(default = "default_true")]
+    pub read_values: bool,
+    /// Allow `write_env_variable`. Opt-in: an AI cannot modify secrets until the
+    /// user turns this on.
+    #[serde(default)]
+    pub write_values: bool,
+    /// Allow deletion tools. Opt-in and independent of `write_values`.
+    #[serde(default)]
+    pub delete_values: bool,
+    /// How long (seconds) an approval dialog waits for the user before the
+    /// request is auto-denied. Clamp with [`McpAccess::timeout_secs`].
+    #[serde(default = "default_approval_timeout")]
+    pub approval_timeout_secs: u32,
+    /// Whether to keep a local, value-free audit log of MCP activity. On by
+    /// default; the log records names/outcomes only and the user can clear it.
+    #[serde(default = "default_true")]
+    pub audit_log: bool,
+    /// Variable names that must **never** be shared with an AI. The MCP server
+    /// refuses to read/return these even if the approval dialog is accepted —
+    /// they aren't offered for approval at all. To share one, the user has to
+    /// remove it from this list here first. Matched case-insensitively by exact
+    /// name.
+    #[serde(default)]
+    pub never_share: Vec<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_approval_timeout() -> u32 {
+    60
+}
+
+impl Default for McpAccess {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            list_projects: true,
+            list_variable_names: true,
+            read_values: true,
+            write_values: false,
+            delete_values: false,
+            approval_timeout_secs: default_approval_timeout(),
+            audit_log: true,
+            never_share: Vec::new(),
+        }
+    }
+}
+
+impl McpAccess {
+    /// The approval timeout, clamped to a sane range (10s–600s) so a
+    /// corrupted/hostile settings value can neither make approvals hang nor make
+    /// the window unusably short.
+    pub fn timeout_secs(&self) -> u32 {
+        self.approval_timeout_secs.clamp(10, 600)
     }
 }
 
@@ -303,6 +393,80 @@ mod tests {
             s.can_write_variable(&id, "BRAND_NEW"),
             "Pro tier must allow new keys beyond the free cap"
         );
+    }
+
+    #[test]
+    fn mcp_access_defaults_are_fail_closed_for_mutations() {
+        let a = McpAccess::default();
+        // Master switch off until the user opts in.
+        assert!(!a.enabled, "MCP must be off by default");
+        // Read-only capabilities are on so a linked-and-enabled client is useful,
+        // but mutation is opt-in.
+        assert!(a.list_projects);
+        assert!(a.list_variable_names);
+        assert!(a.read_values);
+        assert!(!a.write_values, "writes must be opt-in");
+        assert!(!a.delete_values, "deletes must be opt-in");
+        // Value-free audit log is on by default.
+        assert!(a.audit_log);
+    }
+
+    /// A state file written before the `mcp` settings field existed must still
+    /// load — deserializing to the safe default rather than failing or enabling
+    /// anything.
+    #[test]
+    fn legacy_settings_without_mcp_field_deserialize_to_safe_default() {
+        let legacy = r#"{
+            "globalHotkey": "Ctrl+Shift+E",
+            "alwaysOnTop": true,
+            "maskSensitiveData": true
+        }"#;
+        let s: Settings = serde_json::from_str(legacy).unwrap();
+        assert_eq!(s.mcp, McpAccess::default());
+        assert!(!s.mcp.enabled);
+        assert!(!s.mcp.write_values);
+    }
+
+    /// A partially-specified mcp object must fill the rest from safe defaults —
+    /// e.g. enabling reads must not silently enable writes.
+    #[test]
+    fn partial_mcp_settings_fill_missing_fields_safely() {
+        let json = r#"{
+            "globalHotkey": "Ctrl+Shift+E",
+            "alwaysOnTop": true,
+            "maskSensitiveData": true,
+            "mcp": { "enabled": true, "readValues": true }
+        }"#;
+        let s: Settings = serde_json::from_str(json).unwrap();
+        assert!(s.mcp.enabled);
+        assert!(s.mcp.read_values);
+        assert!(!s.mcp.write_values, "unspecified write flag must stay off");
+        assert!(
+            !s.mcp.delete_values,
+            "unspecified delete flag must stay off"
+        );
+    }
+
+    #[test]
+    fn approval_timeout_is_clamped_to_sane_bounds() {
+        let mut a = McpAccess::default();
+        assert_eq!(a.timeout_secs(), 60);
+        a.approval_timeout_secs = 0; // hostile/corrupt: too short
+        assert_eq!(a.timeout_secs(), 10);
+        a.approval_timeout_secs = 100_000; // absurdly long
+        assert_eq!(a.timeout_secs(), 600);
+        a.approval_timeout_secs = 45;
+        assert_eq!(a.timeout_secs(), 45);
+    }
+
+    #[test]
+    fn full_state_round_trips_with_mcp_settings() {
+        let mut s = EnvYouLocalState::default();
+        s.settings.mcp.enabled = true;
+        s.settings.mcp.write_values = true;
+        let json = serde_json::to_string(&s).unwrap();
+        let back: EnvYouLocalState = serde_json::from_str(&json).unwrap();
+        assert_eq!(s, back);
     }
 
     #[test]

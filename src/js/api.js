@@ -22,6 +22,7 @@
 
   // ---- Browser mock ---------------------------------------------------------
   const MOCK_KEY = "envyou_mock_state";
+  const MOCK_AUDIT_KEY = "envyou_mock_audit";
   const FREE_MAX_PROJECTS = 3;
   const FREE_MAX_VARS = 10;
 
@@ -41,7 +42,22 @@
     return {
       version: "1.0.0",
       license: { isPro: false, licenseKey: null, activatedAt: null },
-      settings: { globalHotkey: "Ctrl+Shift+E", alwaysOnTop: true, maskSensitiveData: true },
+      settings: {
+        globalHotkey: "Ctrl+Shift+E",
+        alwaysOnTop: true,
+        maskSensitiveData: true,
+        mcp: {
+          enabled: false,
+          listProjects: true,
+          listVariableNames: true,
+          readValues: true,
+          writeValues: false,
+          deleteValues: false,
+          approvalTimeoutSecs: 60,
+          auditLog: true,
+          neverShare: [],
+        },
+      },
       projects: [],
     };
   }
@@ -124,6 +140,48 @@
     },
     link_claude_desktop: async () =>
       "(browser preview) Claude Desktop config would be merged on the desktop app.",
+    unlink_claude_desktop: async () =>
+      "(browser preview) envyou would be removed from the Claude Desktop config.",
+    claude_code_command: async () =>
+      "claude mcp add --transport stdio envyou -- /path/to/envyou --mcp",
+    link_claude_code: async () =>
+      "(browser preview) envyou would be registered with Claude Code via `claude mcp add`.",
+    mcp_integration_status: async () => ({
+      desktopConfigPath: null,
+      desktopConfigExists: false,
+      envyouInDesktop: false,
+      claudeCliFound: false,
+    }),
+    mcp_get_audit_log: async () => {
+      const raw = localStorage.getItem(MOCK_AUDIT_KEY);
+      if (raw !== null) return JSON.parse(raw);
+      // Seed a small sample so the preview viewer isn't empty.
+      const sample = [
+        {
+          at: "2026-07-14T09:15:02Z",
+          client: "Claude Desktop",
+          tool: "read_values",
+          projectId: "demo",
+          variableNames: ["DATABASE_URL"],
+          count: 1,
+          outcome: "approved",
+        },
+        {
+          at: "2026-07-14T09:16:40Z",
+          client: "Claude Desktop",
+          tool: "read_values",
+          projectId: "demo",
+          variableNames: ["STRIPE_SECRET"],
+          count: 1,
+          outcome: "denied",
+        },
+      ];
+      localStorage.setItem(MOCK_AUDIT_KEY, JSON.stringify(sample));
+      return sample;
+    },
+    mcp_clear_audit_log: async () => {
+      localStorage.setItem(MOCK_AUDIT_KEY, JSON.stringify([]));
+    },
     // Browser preview has no real vault lock — always unlocked, no password.
     vault_status: async () => ({ exists: true, passwordProtected: false, unlocked: true }),
     unlock_vault: async () => loadMock(),
@@ -162,6 +220,16 @@
         : mock.activate_certificate({ certificate }),
     linkClaudeDesktop: () =>
       inTauri ? tauriInvoke("link_claude_desktop") : mock.link_claude_desktop(),
+    unlinkClaudeDesktop: () =>
+      inTauri ? tauriInvoke("unlink_claude_desktop") : mock.unlink_claude_desktop(),
+    claudeCodeCommand: () =>
+      inTauri ? tauriInvoke("claude_code_command") : mock.claude_code_command(),
+    linkClaudeCode: () => (inTauri ? tauriInvoke("link_claude_code") : mock.link_claude_code()),
+    mcpIntegrationStatus: () =>
+      inTauri ? tauriInvoke("mcp_integration_status") : mock.mcp_integration_status(),
+    mcpGetAuditLog: () => (inTauri ? tauriInvoke("mcp_get_audit_log") : mock.mcp_get_audit_log()),
+    mcpClearAuditLog: () =>
+      inTauri ? tauriInvoke("mcp_clear_audit_log") : mock.mcp_clear_audit_log(),
     setAlwaysOnTop: (enabled) => (inTauri ? tauriSetAlwaysOnTop(enabled) : Promise.resolve()),
     vaultStatus: () => (inTauri ? tauriInvoke("vault_status") : mock.vault_status()),
     unlockVault: (password) =>
