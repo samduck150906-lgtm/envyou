@@ -8,8 +8,10 @@
 //! [`serve_stdio`] wires it to STDIO for the `envyou --mcp` runtime mode
 //! (spec §2.2).
 
+pub mod audit;
 mod server;
 
+pub use audit::{AuditEvent, AuditOutcome, AuditSink, AuditTool};
 pub use server::{
     serve_stdio, ApprovalAction, ApprovalGate, ApprovalOutcome, ApprovalRequest, EnvStore,
     McpPolicy, McpServer,

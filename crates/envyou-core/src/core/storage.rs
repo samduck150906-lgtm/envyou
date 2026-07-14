@@ -148,6 +148,46 @@ impl Store {
         migrated.save(&state)?;
         Ok(migrated)
     }
+
+    /// Copy the current encrypted file to a sibling backup named for `label`
+    /// (e.g. `enc_state.json.bak.<label>`), returning the backup path — or
+    /// `Ok(None)` if there is nothing on disk to back up yet.
+    ///
+    /// The backup is a byte-for-byte copy of the **ciphertext envelope**, so it
+    /// is exactly as encrypted as the original — no plaintext is ever written to
+    /// a backup. `label` is sanitized to `[A-Za-z0-9_-]` before use, so a caller
+    /// (or a value derived from untrusted input) cannot use it to escape the
+    /// data directory via `..`, path separators, or NUL.
+    ///
+    /// Intended to be called immediately before a destructive change (e.g. an
+    /// AI-approved delete) so the previous state can be recovered.
+    pub fn backup(&self, label: &str) -> Result<Option<PathBuf>> {
+        if !self.path.exists() {
+            return Ok(None);
+        }
+        let bak = self
+            .path
+            .with_extension(format!("json.bak.{}", sanitize_label(label)));
+        fs::copy(&self.path, &bak)?;
+        Ok(Some(bak))
+    }
+}
+
+/// Reduce an arbitrary label to a filesystem-safe token. Anything outside
+/// `[A-Za-z0-9_-]` is dropped; an empty result falls back to `backup`. This is
+/// what keeps [`Store::backup`] from being turned into a path-traversal
+/// primitive by a hostile label.
+fn sanitize_label(label: &str) -> String {
+    let cleaned: String = label
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .take(64)
+        .collect();
+    if cleaned.is_empty() {
+        "backup".to_string()
+    } else {
+        cleaned
+    }
 }
 
 /// Default per-OS data directory for envyou.
@@ -357,6 +397,69 @@ mod tests {
         let device = Store::new(&path, MasterKey::derive(b"machine"));
         let err = device.load().unwrap_err();
         assert!(err.to_string().contains("password-protected"));
+    }
+
+    #[test]
+    fn backup_copies_encrypted_state_and_restores() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(STATE_FILE);
+        let key = MasterKey::derive(b"machine");
+        let store = Store::new(&path, key.clone());
+
+        let mut state = EnvYouLocalState::default();
+        let mut p = ProjectItem::new("api", "#000080", "now");
+        p.variables.push(EnvVariable {
+            key: "SECRET".into(),
+            value: "backup-should-stay-encrypted".into(),
+            comment: None,
+            is_masked: true,
+        });
+        state.projects.push(p);
+        store.save(&state).unwrap();
+
+        let bak = store
+            .backup("2026-07-14T00-00-00Z")
+            .unwrap()
+            .expect("backup path");
+        assert!(bak.exists(), "backup file must exist");
+
+        // The backup is ciphertext — no plaintext value leaks into it.
+        let raw = fs::read_to_string(&bak).unwrap();
+        assert!(!raw.contains("backup-should-stay-encrypted"));
+        assert!(raw.contains("AES-256-GCM"));
+
+        // And it decrypts (same key) back to the exact prior state — i.e. it is a
+        // usable restore point.
+        let restored = Store::new(&bak, key).load().unwrap();
+        assert_eq!(restored, state);
+    }
+
+    #[test]
+    fn backup_is_noop_when_no_file_yet() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join(STATE_FILE), MasterKey::derive(b"k"));
+        assert!(store.backup("x").unwrap().is_none());
+    }
+
+    #[test]
+    fn backup_label_cannot_escape_the_data_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(STATE_FILE);
+        let store = Store::new(&path, MasterKey::derive(b"k"));
+        store.save(&EnvYouLocalState::default()).unwrap();
+
+        // A hostile label with traversal + separators must be sanitized so the
+        // backup stays a sibling of the state file inside the data dir.
+        let bak = store.backup("../../etc/passwd\0evil").unwrap().unwrap();
+        assert_eq!(
+            bak.parent(),
+            path.parent(),
+            "backup must remain in the data directory"
+        );
+        let name = bak.file_name().unwrap().to_string_lossy();
+        assert!(!name.contains(".."));
+        assert!(!name.contains('/'));
+        assert!(!name.contains('\\'));
     }
 
     #[test]

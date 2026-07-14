@@ -18,6 +18,7 @@ use std::io::{BufRead, Write};
 use serde_json::{json, Value};
 
 use crate::core::model::{EnvVariable, McpAccess, ProjectSummary};
+use crate::mcp::audit::{AuditEvent, AuditOutcome, AuditSink, AuditTool};
 
 /// Protocol version advertised during `initialize`.
 const PROTOCOL_VERSION: &str = "2024-11-05";
@@ -78,6 +79,10 @@ pub enum ApprovalAction {
     /// key from an update so the UI can warn appropriately. The value itself is
     /// deliberately *not* included.
     WriteValue { key: String, creating: bool },
+    /// Permanently remove a variable. A destructive action, so it carries the
+    /// strongest warning; the previous value is backed up (encrypted) before the
+    /// delete so it can be recovered.
+    DeleteValue { key: String },
 }
 
 /// A fully-described approval request handed to the [`ApprovalGate`]. Everything
@@ -135,6 +140,10 @@ pub trait EnvStore {
     fn list_projects(&self) -> Vec<ProjectSummary>;
     fn read_env_variables(&self, project_id: &str) -> Result<Vec<EnvVariable>, String>;
     fn write_env_variable(&self, project_id: &str, key: &str, value: &str) -> Result<(), String>;
+    /// Remove a variable, returning an error if the project or key is unknown.
+    /// Implementations should back up the prior (encrypted) state first so the
+    /// deletion can be recovered.
+    fn delete_env_variable(&self, project_id: &str, key: &str) -> Result<(), String>;
 }
 
 /// The MCP server, generic over the store and approval gate.
@@ -146,6 +155,9 @@ pub struct McpServer<S: EnvStore, G: ApprovalGate> {
     /// because the STDIO loop drives the server through `&self`; the loop is
     /// single-threaded so a `RefCell` is sufficient.
     client: RefCell<String>,
+    /// Optional local audit log. Every value-touching tool call records a
+    /// value-free [`AuditEvent`]; `None` disables auditing entirely.
+    audit: Option<Box<dyn AuditSink>>,
 }
 
 const UNKNOWN_CLIENT: &str = "Unknown MCP client";
@@ -157,11 +169,25 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
             gate,
             policy,
             client: RefCell::new(UNKNOWN_CLIENT.to_string()),
+            audit: None,
         }
+    }
+
+    /// Attach a local audit sink. The server records a value-free event for each
+    /// read/write/delete attempt (approved, denied, timed out, or refused).
+    pub fn with_audit_sink(mut self, sink: Box<dyn AuditSink>) -> Self {
+        self.audit = Some(sink);
+        self
     }
 
     fn client_name(&self) -> String {
         self.client.borrow().clone()
+    }
+
+    fn audit(&self, event: AuditEvent) {
+        if let Some(sink) = &self.audit {
+            sink.record(&event);
+        }
     }
 
     /// Handle a single JSON-RPC request line. Returns `Some(response_json)` for
@@ -240,6 +266,7 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
             "list_variable_names" => self.call_list_variable_names(&args),
             "read_env_variables" => self.call_read(&args),
             "write_env_variable" => self.call_write(&args),
+            "delete_env_variable" => self.call_delete(&args),
             other => Err((-32602, format!("Unknown tool: {other}"))),
         }
     }
@@ -329,8 +356,29 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
         });
         let granted = match approved_names(&outcome) {
             Some(g) => g,
-            None => return Ok(denial_result(&outcome)),
+            None => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    AuditTool::ReadValues,
+                    &project_id,
+                    names.clone(),
+                    AuditOutcome::from(&outcome),
+                ));
+                return Ok(denial_result(&outcome));
+            }
         };
+        // Record the decision (approved / partially approved), never any value.
+        self.audit(AuditEvent::new(
+            self.client_name(),
+            AuditTool::ReadValues,
+            &project_id,
+            names.clone(),
+            if granted.len() < names.len() {
+                AuditOutcome::PartiallyApproved
+            } else {
+                AuditOutcome::Approved
+            },
+        ));
         if granted.is_empty() {
             return Ok(tool_text(
                 "User did not approve any of the requested variables.",
@@ -400,21 +448,131 @@ impl<S: EnvStore, G: ApprovalGate> McpServer<S, G> {
             },
             reason,
         });
+        let tool = if creating {
+            AuditTool::CreateValue
+        } else {
+            AuditTool::UpdateValue
+        };
         let granted = match approved_names(&outcome) {
             Some(g) => g,
-            None => return Ok(denial_result(&outcome)),
+            None => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    tool,
+                    &project_id,
+                    vec![key.clone()],
+                    AuditOutcome::from(&outcome),
+                ));
+                return Ok(denial_result(&outcome));
+            }
         };
         if !granted.iter().any(|g| g == &key) {
+            self.audit(AuditEvent::new(
+                self.client_name(),
+                tool,
+                &project_id,
+                vec![key.clone()],
+                AuditOutcome::Denied,
+            ));
             return Ok(tool_text("User did not approve the write.", true));
         }
 
         match self.store.write_env_variable(&project_id, &key, &value) {
             // Report only the changed key — never the value that was stored.
-            Ok(()) => Ok(tool_text(
-                &format!("Saved `{key}` to project `{project_id}`."),
-                false,
-            )),
-            Err(e) => Ok(tool_text(&format!("Error: {e}"), true)),
+            Ok(()) => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    tool,
+                    &project_id,
+                    vec![key.clone()],
+                    AuditOutcome::Completed,
+                ));
+                Ok(tool_text(
+                    &format!("Saved `{key}` to project `{project_id}`."),
+                    false,
+                ))
+            }
+            Err(e) => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    tool,
+                    &project_id,
+                    vec![key.clone()],
+                    AuditOutcome::Failed,
+                ));
+                Ok(tool_text(&format!("Error: {e}"), true))
+            }
+        }
+    }
+
+    fn call_delete(&self, args: &Value) -> Result<Value, (i64, String)> {
+        // Deletes are opt-in and independent of writes — the most destructive
+        // tool, so it needs its own explicit enablement.
+        if !self.policy.delete_values {
+            return Ok(tool_text(
+                "Deleting variables via AI is disabled in envyou. Enable it in Settings → AI Integrations if you want to allow this.",
+                true,
+            ));
+        }
+        let project_id = require_str(args, "projectId")?;
+        let key = require_str(args, "key")?;
+        let reason = optional_str(args, "reason");
+
+        let outcome = self.gate.request(&ApprovalRequest {
+            client: self.client_name(),
+            project_id: project_id.clone(),
+            project_name: self.project_display_name(&project_id),
+            action: ApprovalAction::DeleteValue { key: key.clone() },
+            reason,
+        });
+        let granted = match approved_names(&outcome) {
+            Some(g) => g,
+            None => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    AuditTool::DeleteValue,
+                    &project_id,
+                    vec![key.clone()],
+                    AuditOutcome::from(&outcome),
+                ));
+                return Ok(denial_result(&outcome));
+            }
+        };
+        if !granted.iter().any(|g| g == &key) {
+            self.audit(AuditEvent::new(
+                self.client_name(),
+                AuditTool::DeleteValue,
+                &project_id,
+                vec![key.clone()],
+                AuditOutcome::Denied,
+            ));
+            return Ok(tool_text("User did not approve the deletion.", true));
+        }
+
+        match self.store.delete_env_variable(&project_id, &key) {
+            Ok(()) => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    AuditTool::DeleteValue,
+                    &project_id,
+                    vec![key.clone()],
+                    AuditOutcome::Completed,
+                ));
+                Ok(tool_text(
+                    &format!("Deleted `{key}` from project `{project_id}`."),
+                    false,
+                ))
+            }
+            Err(e) => {
+                self.audit(AuditEvent::new(
+                    self.client_name(),
+                    AuditTool::DeleteValue,
+                    &project_id,
+                    vec![key.clone()],
+                    AuditOutcome::Failed,
+                ));
+                Ok(tool_text(&format!("Error: {e}"), true))
+            }
         }
     }
 
@@ -590,6 +748,21 @@ fn tool_schemas(policy: &McpPolicy) -> Value {
             }
         }));
     }
+    if policy.delete_values {
+        tools.push(json!({
+            "name": "delete_env_variable",
+            "description": "Permanently remove a single environment variable. Destructive; requires explicit user approval on every call. The prior value is backed up (encrypted) before removal.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "projectId": { "type": "string", "description": "The project's id." },
+                    "key": { "type": "string", "description": "Variable name to delete." },
+                    "reason": { "type": "string", "description": "Optional: why (shown to the user)." }
+                },
+                "required": ["projectId", "key"]
+            }
+        }));
+    }
 
     Value::Array(tools)
 }
@@ -602,6 +775,7 @@ mod tests {
     struct FakeStore {
         vars: Vec<EnvVariable>,
         writes: RefCell<Vec<(String, String, String)>>,
+        deletes: RefCell<Vec<(String, String)>>,
     }
     impl FakeStore {
         fn new() -> Self {
@@ -621,6 +795,7 @@ mod tests {
                     },
                 ],
                 writes: RefCell::new(vec![]),
+                deletes: RefCell::new(vec![]),
             }
         }
     }
@@ -644,6 +819,25 @@ mod tests {
                 .borrow_mut()
                 .push((p.into(), k.into(), v.into()));
             Ok(())
+        }
+        fn delete_env_variable(&self, p: &str, k: &str) -> Result<(), String> {
+            if p != "p1" {
+                return Err(format!("project not found: {p}"));
+            }
+            if !self.vars.iter().any(|v| v.key == k) {
+                return Err(format!("variable not found: {k}"));
+            }
+            self.deletes.borrow_mut().push((p.into(), k.into()));
+            Ok(())
+        }
+    }
+
+    /// A test audit sink that captures every recorded event for assertions.
+    #[derive(Clone, Default)]
+    struct TestAudit(std::rc::Rc<RefCell<Vec<AuditEvent>>>);
+    impl AuditSink for TestAudit {
+        fn record(&self, event: &AuditEvent) {
+            self.0.borrow_mut().push(event.clone());
         }
     }
 
@@ -999,6 +1193,129 @@ mod tests {
         );
         assert_eq!(r["result"]["isError"], true);
         assert!(s.store.writes.borrow().is_empty());
+    }
+
+    #[test]
+    fn delete_disabled_by_default_policy() {
+        // Everything on except delete — delete stays off unless explicitly enabled.
+        let p = McpPolicy {
+            delete_values: false,
+            ..open_policy()
+        };
+        let s = server_with(ApprovalOutcome::approved_all(["DATABASE_URL".into()]), p);
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"delete_env_variable","arguments":{"projectId":"p1","key":"DATABASE_URL"}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert!(s.store.deletes.borrow().is_empty());
+        assert!(
+            s.gate.seen.borrow().is_empty(),
+            "disabled tool must not prompt"
+        );
+    }
+
+    #[test]
+    fn delete_tool_absent_from_list_unless_enabled() {
+        let p = McpPolicy {
+            delete_values: false,
+            ..open_policy()
+        };
+        let s = server_with(ApprovalOutcome::Denied, p);
+        let r = call(&s, r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#);
+        let names: Vec<&str> = r["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(!names.contains(&"delete_env_variable"));
+    }
+
+    #[test]
+    fn delete_denied_does_not_remove() {
+        let s = server(ApprovalOutcome::Denied);
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"delete_env_variable","arguments":{"projectId":"p1","key":"DATABASE_URL"}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert!(s.store.deletes.borrow().is_empty());
+    }
+
+    #[test]
+    fn delete_timeout_is_fail_closed() {
+        let s = server(ApprovalOutcome::Timeout);
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"delete_env_variable","arguments":{"projectId":"p1","key":"DATABASE_URL"}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert!(s.store.deletes.borrow().is_empty());
+    }
+
+    #[test]
+    fn delete_removes_when_enabled_and_approved() {
+        let s = server(ApprovalOutcome::approved_all(["DATABASE_URL".into()]));
+        let r = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"delete_env_variable","arguments":{"projectId":"p1","key":"DATABASE_URL"}}}"#,
+        );
+        assert_eq!(r["result"]["isError"], false);
+        assert_eq!(s.store.deletes.borrow().len(), 1);
+        assert_eq!(s.store.deletes.borrow()[0].1, "DATABASE_URL");
+        // The delete approval is flagged as a delete action.
+        let seen = s.gate.seen.borrow();
+        assert!(matches!(seen[0].action, ApprovalAction::DeleteValue { .. }));
+    }
+
+    #[test]
+    fn audit_records_read_decision_without_values() {
+        let audit = TestAudit::default();
+        let s = server(ApprovalOutcome::approved_all(["DATABASE_URL".into()]))
+            .with_audit_sink(Box::new(audit.clone()));
+        let _ = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"read_env_variables","arguments":{"projectId":"p1","names":["DATABASE_URL","API_URL"]}}}"#,
+        );
+        let events = audit.0.borrow();
+        assert_eq!(events.len(), 1);
+        let ev = &events[0];
+        assert_eq!(ev.tool, AuditTool::ReadValues);
+        // Asked for two, granted one => partial.
+        assert_eq!(ev.outcome, AuditOutcome::PartiallyApproved);
+        assert_eq!(ev.variable_names, vec!["DATABASE_URL", "API_URL"]);
+        // The audit event must never carry a value.
+        let json = serde_json::to_string(ev).unwrap();
+        assert!(!json.contains("postgres://localhost/db"));
+    }
+
+    #[test]
+    fn audit_records_denied_read() {
+        let audit = TestAudit::default();
+        let s = server(ApprovalOutcome::Denied).with_audit_sink(Box::new(audit.clone()));
+        let _ = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"read_env_variables","arguments":{"projectId":"p1","names":["DATABASE_URL"]}}}"#,
+        );
+        let events = audit.0.borrow();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].outcome, AuditOutcome::Denied);
+    }
+
+    #[test]
+    fn audit_records_completed_delete() {
+        let audit = TestAudit::default();
+        let s = server(ApprovalOutcome::approved_all(["DATABASE_URL".into()]))
+            .with_audit_sink(Box::new(audit.clone()));
+        let _ = call(
+            &s,
+            r#"{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"delete_env_variable","arguments":{"projectId":"p1","key":"DATABASE_URL"}}}"#,
+        );
+        let events = audit.0.borrow();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].tool, AuditTool::DeleteValue);
+        assert_eq!(events[0].outcome, AuditOutcome::Completed);
     }
 
     #[test]

@@ -29,6 +29,8 @@ use envyou_core::mcp::{
     McpPolicy, McpServer,
 };
 
+use crate::util::now_iso8601;
+
 /// Adapter exposing the encrypted [`Store`] to the MCP server. Each call loads
 /// the latest state from disk so the GUI and the MCP process stay in sync.
 struct StoreAdapter {
@@ -77,6 +79,26 @@ impl EnvStore for StoreAdapter {
                 is_masked: true,
             }),
         }
+        self.store.save(&state).map_err(|e| e.to_string())
+    }
+
+    fn delete_env_variable(&self, project_id: &str, key: &str) -> Result<(), String> {
+        let mut state = self.store.load().map_err(|e| e.to_string())?;
+        let project = state
+            .project_mut(project_id)
+            .ok_or_else(|| format!("project not found: {project_id}"))?;
+        let before = project.variables.len();
+        project.variables.retain(|v| v.key != key);
+        if project.variables.len() == before {
+            return Err(format!("variable not found: {key}"));
+        }
+        // Back up the current (encrypted) state *before* persisting the removal
+        // so the deletion is recoverable. If the backup can't be written, abort
+        // rather than perform a destructive save with no recovery point. The
+        // label is a timestamp (no variable name) and the backup stays encrypted.
+        self.store
+            .backup(&format!("predelete-{}", now_iso8601()))
+            .map_err(|e| e.to_string())?;
         self.store.save(&state).map_err(|e| e.to_string())
     }
 }
@@ -171,6 +193,19 @@ fn build_dialog(req: &ApprovalRequest) -> (String, String, Vec<String>) {
             );
             (
                 "envyou — AI wants to change a secret".to_string(),
+                body,
+                vec![key.clone()],
+            )
+        }
+        ApprovalAction::DeleteValue { key } => {
+            let body = format!(
+                "{client} is requesting to DELETE an environment variable:\n\n  \
+                 • {key}\n\nfrom project \"{project}\".{reason}\n\n\
+                 This permanently removes the value. envyou keeps an encrypted \
+                 backup so it can be recovered. This approves a single deletion.",
+            );
+            (
+                "envyou — AI wants to DELETE a secret".to_string(),
                 body,
                 vec![key.clone()],
             )
@@ -309,6 +344,24 @@ mod tests {
         assert!(body.contains("Claude Desktop"));
         assert!(body.to_lowercase().contains("provider"));
         assert_eq!(granted, vec!["DATABASE_URL", "API_KEY"]);
+    }
+
+    #[test]
+    fn delete_dialog_warns_and_mentions_backup() {
+        let req = ApprovalRequest {
+            client: "Claude Desktop".into(),
+            project_id: "p1".into(),
+            project_name: "api".into(),
+            action: ApprovalAction::DeleteValue {
+                key: "OLD_TOKEN".into(),
+            },
+            reason: None,
+        };
+        let (title, body, granted) = build_dialog(&req);
+        assert!(title.contains("DELETE"));
+        assert!(body.contains("OLD_TOKEN"));
+        assert!(body.to_lowercase().contains("backup"));
+        assert_eq!(granted, vec!["OLD_TOKEN"]);
     }
 
     #[test]
